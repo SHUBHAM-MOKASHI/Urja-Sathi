@@ -650,3 +650,130 @@ export interface WorkerMatchResult {
   ineligibilityReason?: string;
   matchReasons: string[];
 }
+
+// ==========================================
+// SAVINGS-TO-SKILLS FEEDBACK & IMPACT TRACKER
+// ==========================================
+
+export type ImpactEvidenceQuality = 'verified' | 'estimated' | 'potential';
+
+export type ImpactVerificationStatus =
+  | 'verified' // Empirically verified with both baseline & subsequent OCR bills
+  | 'partially_verified' // Action completed, subsequent bill pending/seasonal variance
+  | 'pending_subsequent_bill' // Awaiting next billing cycle read
+  | 'insufficient_evidence'; // Missing bill data or invalid read
+
+export interface HouseholdBillEvidence {
+  billId: string;
+  billMonth: string;
+  billDate: string;
+  unitsKwh: number;
+  amountInr: number;
+}
+
+export interface HouseholdCompletedAction {
+  actionId: string;
+  actionTitle: string;
+  completedDate: string;
+  documentedExpenditureInr: number;
+  expenseReceiptRef?: string;
+  assistingWorkerId?: string;
+  assistingWorkerName?: string;
+}
+
+export interface HouseholdImpactRecord {
+  householdId: string;
+  householdName: string;
+  locality: string;
+  pincode: string;
+  consentGiven: boolean;
+  consentDate: string;
+  baselineBill: HouseholdBillEvidence;
+  subsequentBill?: HouseholdBillEvidence;
+  recommendedActions: {
+    actionId: string;
+    actionTitle: string;
+    estimatedKwhSavings: number;
+    estimatedMonetarySavingsInr: number;
+  }[];
+  completedActions: HouseholdCompletedAction[];
+  totalDocumentedExpenditureInr: number;
+  estimatedMonthlySavingsKwh: number;
+  estimatedMonthlySavingsInr: number;
+  verifiedMonthlySavingsKwh: number | null; // Only populated if supported by sufficient evidence!
+  verifiedMonthlySavingsInr: number | null; // Only populated if supported by sufficient evidence!
+  evidenceQuality: ImpactVerificationStatus;
+  auditNotes: string;
+  lastAuditedDate: string;
+}
+
+export interface WorkerPaymentTransaction {
+  requestId: string;
+  date: string;
+  amountInr: number;
+  method: 'cash' | 'upi' | 'waived';
+  receiptRef: string;
+  isVerified: boolean;
+}
+
+export interface WorkerImpactMetric {
+  workerId: string;
+  workerName: string;
+  roleCategory: WorkerRoleCategory;
+  totalServiceRequests: number;
+  acceptedAssignments: number;
+  completedAssignments: number;
+  totalDocumentedEarningsInr: number;
+  verifiedEarningsInr: number;
+  paymentTransactions: WorkerPaymentTransaction[];
+  activeMonths: number;
+  completionRatePercent: number;
+  retentionStatus: 'active_retained' | 'sporadic' | 'inactive';
+}
+
+export interface TripartiteImpactSummary {
+  // 1. Measured Impact: Empirically verified outcomes backed by OCR bills and worker receipts
+  measuredImpact: {
+    totalVerifiedSavingsKwhMonthly: number;
+    totalVerifiedSavingsInrMonthly: number;
+    annualVerifiedSavingsInr: number;
+    verifiedHouseholdsCount: number;
+    verifiedWorkerEarningsInr: number;
+    basisOfCalculation: string;
+  };
+  // 2. Estimated Impact: Engineering calculations for completed actions awaiting next billing cycle
+  estimatedImpact: {
+    totalEstimatedSavingsKwhMonthly: number;
+    totalEstimatedSavingsInrMonthly: number;
+    annualEstimatedSavingsInr: number;
+    partiallyVerifiedHouseholdsCount: number;
+    basisOfCalculation: string;
+  };
+  // 3. Potential Impact: Pipeline of unrealized opportunities from pending recommendations
+  potentialImpact: {
+    totalPotentialSavingsKwhMonthly: number;
+    totalPotentialSavingsInrMonthly: number;
+    annualPotentialSavingsInr: number;
+    pendingActionCount: number;
+    basisOfCalculation: string;
+  };
+}
+
+export interface AdminImpactDashboardData {
+  totalConsentingHouseholds: number;
+  totalCompletedServices: number;
+  totalActiveWorkers: number;
+  totalDocumentedPaidAssignmentsInr: number;
+  householdFollowUpRecords: HouseholdImpactRecord[];
+  workerImpactRecords: WorkerImpactMetric[];
+  tripartiteSummary: TripartiteImpactSummary;
+  monthlyTrajectory: {
+    month: string;
+    measuredKwhSaved: number;
+    estimatedKwhSaved: number;
+    workerEarningsDisbursedInr: number;
+    completedJobs: number;
+  }[];
+  isDemonstrationData: true;
+  lastAuditTimestamp: string;
+}

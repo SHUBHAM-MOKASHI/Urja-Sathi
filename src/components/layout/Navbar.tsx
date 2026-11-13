@@ -16,6 +16,7 @@ import {
   Lightbulb,
   Scale,
   Landmark,
+  TrendingUp,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Button } from '../common/Button';
@@ -37,6 +38,7 @@ export const Navbar: React.FC = () => {
     { label: 'Compare Quotes', path: '/quotations', icon: Scale },
     { label: 'Govt Schemes', path: '/schemes', icon: Landmark },
     { label: 'Local Workers', path: '/workforce', icon: Users },
+    { label: 'Impact Tracker', path: '/impact', icon: TrendingUp },
   ];
 
   const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {

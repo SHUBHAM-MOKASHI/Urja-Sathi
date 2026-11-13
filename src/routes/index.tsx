@@ -9,6 +9,7 @@ import { CommunityWorkforcePage } from '../pages/CommunityWorkforcePage';
 import { SavingsPlannerPage } from '../pages/SavingsPlannerPage';
 import { QuotationComparisonPage } from '../pages/QuotationComparisonPage';
 import { GovernmentSchemesPage } from '../pages/GovernmentSchemesPage';
+import { ImpactTrackerPage } from '../pages/ImpactTrackerPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 
@@ -30,6 +31,9 @@ export const AppRoutes: React.FC = () => {
         <Route path="/schemes" element={<GovernmentSchemesPage />} />
         <Route path="/guidance" element={<GovernmentSchemesPage />} />
         <Route path="/workforce" element={<CommunityWorkforcePage />} />
+        <Route path="/impact" element={<ImpactTrackerPage />} />
+        <Route path="/tracker" element={<ImpactTrackerPage />} />
+        <Route path="/feedback" element={<ImpactTrackerPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

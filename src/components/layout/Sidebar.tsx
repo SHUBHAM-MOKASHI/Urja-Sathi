@@ -11,6 +11,7 @@ import {
   Lightbulb,
   Scale,
   Landmark,
+  TrendingUp,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -25,6 +26,7 @@ export const Sidebar: React.FC = () => {
     { to: '/quotations', label: 'Compare Quotations', icon: Scale },
     { to: '/schemes', label: 'Govt Schemes & DBT', icon: Landmark },
     { to: '/workforce', label: 'Community Workforce', icon: Users },
+    { to: '/impact', label: 'Impact & Feedback', icon: TrendingUp },
     { to: '/settings', label: 'Settings & Cache', icon: Settings },
   ];
 

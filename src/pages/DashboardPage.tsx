@@ -13,6 +13,7 @@ import {
   Sparkles,
   Scale,
   Landmark,
+  TrendingUp,
 } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/common/Card';
@@ -124,6 +125,11 @@ export const DashboardPage: React.FC = () => {
           <Link to="/schemes">
             <Button size="sm" variant="outline" icon={<Landmark className="w-4 h-4 text-emerald-600" />}>
               Govt Schemes
+            </Button>
+          </Link>
+          <Link to="/impact">
+            <Button size="sm" variant="outline" icon={<TrendingUp className="w-4 h-4 text-emerald-600" />}>
+              Impact Tracker
             </Button>
           </Link>
         </div>
