@@ -8,6 +8,7 @@ import { SolarAuditPage } from '../pages/SolarAuditPage';
 import { CommunityWorkforcePage } from '../pages/CommunityWorkforcePage';
 import { SavingsPlannerPage } from '../pages/SavingsPlannerPage';
 import { QuotationComparisonPage } from '../pages/QuotationComparisonPage';
+import { GovernmentSchemesPage } from '../pages/GovernmentSchemesPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 
@@ -26,6 +27,8 @@ export const AppRoutes: React.FC = () => {
         <Route path="/solar-audit" element={<SolarAuditPage />} />
         <Route path="/quotations" element={<QuotationComparisonPage />} />
         <Route path="/quotes" element={<QuotationComparisonPage />} />
+        <Route path="/schemes" element={<GovernmentSchemesPage />} />
+        <Route path="/guidance" element={<GovernmentSchemesPage />} />
         <Route path="/workforce" element={<CommunityWorkforcePage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />

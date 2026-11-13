@@ -10,6 +10,7 @@ import {
   Info,
   Lightbulb,
   Scale,
+  Landmark,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -22,6 +23,7 @@ export const Sidebar: React.FC = () => {
     { to: '/savings', label: 'Savings Planner', icon: Lightbulb },
     { to: '/solar', label: 'Solar ROI Audit', icon: Sun },
     { to: '/quotations', label: 'Compare Quotations', icon: Scale },
+    { to: '/schemes', label: 'Govt Schemes & DBT', icon: Landmark },
     { to: '/workforce', label: 'Community Workforce', icon: Users },
     { to: '/settings', label: 'Settings & Cache', icon: Settings },
   ];

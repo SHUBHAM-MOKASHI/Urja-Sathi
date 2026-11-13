@@ -15,6 +15,7 @@ import {
   Settings,
   Lightbulb,
   Scale,
+  Landmark,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Button } from '../common/Button';
@@ -34,6 +35,7 @@ export const Navbar: React.FC = () => {
     { label: 'Savings Planner', path: '/savings', icon: Lightbulb },
     { label: 'Solar ROI', path: '/solar', icon: Sun },
     { label: 'Compare Quotes', path: '/quotations', icon: Scale },
+    { label: 'Govt Schemes', path: '/schemes', icon: Landmark },
     { label: 'Local Workers', path: '/workforce', icon: Users },
   ];
 

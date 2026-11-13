@@ -425,3 +425,120 @@ export interface QuotationComparisonResult {
   comparisonHighlights: string[];
   benchmarkPricePerWattPeak: number;
 }
+
+// ==========================================
+// GOVERNMENT SCHEME GUIDANCE TYPES
+// ==========================================
+
+export type GovernmentSchemeCategory =
+  | 'rooftop_solar'
+  | 'solar_pumps'
+  | 'appliance_efficiency'
+  | 'solar_water_heater'
+  | 'battery_storage';
+
+export type SchemeLevel = 'central' | 'state';
+
+export interface SchemeSlab {
+  capacityRange: string;
+  subsidyFormula: string;
+  maxSubsidyInr: number;
+  notes?: string;
+}
+
+export interface EligibilityCriterion {
+  id: string;
+  label: string;
+  description: string;
+  category: 'connection' | 'property' | 'banking' | 'technical';
+  isMandatory: boolean;
+  verificationMethod: string;
+  remedyIfFailed: string;
+}
+
+export interface RequiredDocument {
+  id: string;
+  documentName: string;
+  issuingAuthority: string;
+  purpose: string;
+  specifications: string;
+  commonPitfalls: string;
+  isMandatory: boolean;
+}
+
+export interface SchemeApplicationStep {
+  stepNumber: number;
+  title: string;
+  description: string;
+  portalAction: string;
+}
+
+export interface GovernmentScheme {
+  id: string;
+  code: string;
+  name: string;
+  tagline: string;
+  administeringAgency: string; // e.g. "Ministry of New & Renewable Energy (MNRE)"
+  level: SchemeLevel;
+  applicableStates: string[]; // e.g. ['all'] or ['Madhya Pradesh', 'Delhi']
+  applicableDiscoms: string[]; // e.g. ['all'] or ['MPPKVVCL_WEST', 'BRPL']
+  category: GovernmentSchemeCategory;
+  slabs: SchemeSlab[];
+  maxSubsidyAmountInr: number;
+  validFrom: string;
+  validUntil: string;
+  policyVersion: string;
+  gazetteNotificationNumber?: string;
+  sourceUrl: string;
+  officialApplicationUrl: string;
+  lastVerifiedDate: string; // ISO date string (YYYY-MM-DD)
+  isUnverifiedOrOutdated: boolean;
+  outdatedWarningNotice?: string;
+  applicationSteps: SchemeApplicationStep[];
+  eligibilityCriteria: EligibilityCriterion[];
+  requiredDocuments: RequiredDocument[];
+  commonRejectionReasons: string[];
+  disclaimers: string[];
+}
+
+export interface DiscomInfo {
+  code: string;
+  name: string;
+  portalUrl: string;
+  consumerNumberFormat: string;
+  stateCode: string;
+}
+
+export interface StateDiscomInfo {
+  stateName: string;
+  stateCode: string;
+  discoms: DiscomInfo[];
+}
+
+export interface UserSchemeReadinessInput {
+  selectedState: string;
+  selectedDiscom: string;
+  consumerType?: 'domestic' | 'commercial' | 'agricultural' | 'industrial';
+  hasActiveConnection?: boolean;
+  hasNoOutstandingDues?: boolean;
+  roofOwnership?: 'owned_individual' | 'owned_shared_apartment' | 'tenant';
+  hasRwaNoc?: boolean;
+  bankAadhaarLinked?: boolean;
+  nameMatchesAcrossDocAndBank?: boolean;
+  usableRoofAreaSqFt?: number;
+  checkedDocumentIds?: string[];
+  checkedCriteriaIds?: string[];
+}
+
+export interface SchemeReadinessResult {
+  schemeId: string;
+  eligibilityStatus: 'eligible' | 'conditional' | 'ineligible';
+  eligibilityScorePercent: number;
+  passedCriteria: EligibilityCriterion[];
+  failedCriteria: EligibilityCriterion[];
+  documentReadinessPercent: number;
+  missingDocuments: RequiredDocument[];
+  criticalWarnings: string[];
+  readyForOfficialSubmission: boolean;
+  nextActions: string[];
+}

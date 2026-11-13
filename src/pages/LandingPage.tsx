@@ -79,11 +79,11 @@ export const LandingPage: React.FC = () => {
 
             {/* Key Trust Highlights */}
             <div className="pt-8 grid grid-cols-2 sm:grid-cols-4 gap-4 text-left border-t border-slate-200/60 mt-10">
-              <div className="p-3 bg-white/80 rounded-xl border border-slate-200/80 shadow-xs">
+              <Link to="/schemes" className="p-3 bg-white/80 hover:bg-emerald-50/50 rounded-xl border border-slate-200/80 hover:border-emerald-300 shadow-xs transition-colors">
                 <p className="text-xs text-slate-500 font-medium">Govt Subsidy</p>
                 <p className="text-lg font-bold text-forest-900">Up to ₹78,000</p>
-                <p className="text-[11px] text-emerald-700">PM Surya Ghar Yojana</p>
-              </div>
+                <p className="text-[11px] text-emerald-700 font-medium">PM Surya Ghar Yojana →</p>
+              </Link>
               <div className="p-3 bg-white/80 rounded-xl border border-slate-200/80 shadow-xs">
                 <p className="text-xs text-slate-500 font-medium">Avg Annual Savings</p>
                 <p className="text-lg font-bold text-forest-900">₹14,500+</p>

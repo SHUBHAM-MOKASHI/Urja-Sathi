@@ -333,17 +333,25 @@ export const SolarAuditPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="subVer"
-                  checked={isSubsidyVerified}
-                  onChange={(e) => setIsSubsidyVerified(e.target.checked)}
-                  className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
-                />
-                <label htmlFor="subVer" className="text-xs text-slate-600 cursor-pointer">
-                  Subsidy confirmed via National Portal / DISCOM sanction
-                </label>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="subVer"
+                    checked={isSubsidyVerified}
+                    onChange={(e) => setIsSubsidyVerified(e.target.checked)}
+                    className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                  />
+                  <label htmlFor="subVer" className="text-xs text-slate-600 cursor-pointer">
+                    Subsidy confirmed via National Portal / DISCOM sanction
+                  </label>
+                </div>
+                <Link
+                  to="/schemes"
+                  className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+                >
+                  Govt Scheme & DBT Guidance →
+                </Link>
               </div>
             </div>
 
