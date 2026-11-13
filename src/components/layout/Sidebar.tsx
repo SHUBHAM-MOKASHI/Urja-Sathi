@@ -16,7 +16,7 @@ import {
 import { useApp } from '../../context/AppContext';
 
 export const Sidebar: React.FC = () => {
-  const { isOnline, savedBillsCount } = useApp();
+  const { isOnline, savedBillsCount, pendingQueueCount } = useApp();
 
   const links = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -98,6 +98,11 @@ export const Sidebar: React.FC = () => {
             ? 'Synced with background cache'
             : 'All changes saved locally offline'}
         </p>
+        {pendingQueueCount > 0 && (
+          <div className="mt-1 text-[10px] text-amber-800 bg-amber-100 font-bold px-1.5 py-0.5 rounded border border-amber-200">
+            {pendingQueueCount} record{pendingQueueCount > 1 ? 's' : ''} queued for sync
+          </div>
+        )}
       </div>
     </aside>
   );

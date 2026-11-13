@@ -23,6 +23,9 @@ import { Button } from '../components/common/Button';
 import { StatCard } from '../components/common/StatCard';
 import { Badge } from '../components/common/Badge';
 import { useNotification } from '../context/NotificationContext';
+import { useApp } from '../context/AppContext';
+import { dbService } from '../services/db';
+import { syncService } from '../services/syncService';
 import {
   Users,
   ShieldCheck,
@@ -40,6 +43,7 @@ import {
 
 export const CommunityWorkforcePage: React.FC = () => {
   const { showNotification } = useNotification();
+  const { isOffline, triggerManualSync } = useApp();
 
   // Mode: Household vs Worker Dashboard
   const [activeMode, setActiveMode] = useState<'household' | 'worker'>('household');
@@ -62,6 +66,25 @@ export const CommunityWorkforcePage: React.FC = () => {
       return SAMPLE_SERVICE_REQUESTS;
     }
   });
+
+  // Load from IndexedDB on initial mount
+  useEffect(() => {
+    const loadFromDB = async () => {
+      try {
+        const stored = await dbService.getAllServiceRequests();
+        if (stored && stored.length > 0) {
+          setServiceRequests(stored);
+        } else {
+          for (const req of SAMPLE_SERVICE_REQUESTS) {
+            await dbService.saveServiceRequest(req);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load service requests from IndexedDB:', e);
+      }
+    };
+    loadFromDB();
+  }, []);
 
   // Active Worker selected when in Worker Dashboard mode
   const [activeWorkerId, setActiveWorkerId] = useState<string>(SAMPLE_WORKERS[0].id);
@@ -101,27 +124,49 @@ export const CommunityWorkforcePage: React.FC = () => {
   // -------------------------------------------------------------
   // HOUSEHOLD HANDLERS
   // -------------------------------------------------------------
-  const handleCreateRequest = (
+  const handleCreateRequest = async (
     data: Omit<ServiceRequest, 'id' | 'createdAt' | 'status' | 'isTechnical'>
   ) => {
     try {
       const newReq = createServiceRequest(data);
+      await dbService.saveServiceRequest(newReq);
       setServiceRequests([newReq, ...serviceRequests]);
-      showNotification('success', 'Service Request Dispatched', `Request "${newReq.title}" has been registered.`);
+
+      await syncService.enqueueOfflineAction(
+        'service_request',
+        'create',
+        newReq,
+        `idem_req_${newReq.id}`
+      );
+
+      if (isOffline) {
+        showNotification(
+          'info',
+          'Saved in Offline Queue',
+          `Request "${newReq.title}" is saved locally. It will automatically sync when connection returns.`
+        );
+      } else {
+        await triggerManualSync();
+        showNotification('success', 'Service Request Dispatched', `Request "${newReq.title}" has been registered.`);
+      }
     } catch (err: any) {
       showNotification('error', 'Request Creation Failed', err.message);
     }
   };
 
-  const handleCancelRequest = (req: ServiceRequest) => {
+  const handleCancelRequest = async (req: ServiceRequest) => {
     const updated = updateServiceRequestStatus(req, 'cancelled');
+    await dbService.saveServiceRequest(updated);
     setServiceRequests(serviceRequests.map((r) => (r.id === req.id ? updated : r)));
+    await syncService.enqueueOfflineAction('service_request', 'update', updated, `idem_cancel_${req.id}`);
     showNotification('info', 'Request Cancelled', `Service request "${req.title}" was cancelled.`);
   };
 
-  const handleSubmitFeedback = (req: ServiceRequest, rating: number, review: string) => {
+  const handleSubmitFeedback = async (req: ServiceRequest, rating: number, review: string) => {
     const updated = submitHouseholdFeedback(req, rating, review);
+    await dbService.saveServiceRequest(updated);
     setServiceRequests(serviceRequests.map((r) => (r.id === req.id ? updated : r)));
+    await syncService.enqueueOfflineAction('service_request', 'update', updated, `idem_feedback_${req.id}`);
     showNotification('success', 'Review Submitted', 'Thank you for rating your service experience!');
   };
 
@@ -144,10 +189,12 @@ export const CommunityWorkforcePage: React.FC = () => {
   // -------------------------------------------------------------
   // WORKER HANDLERS
   // -------------------------------------------------------------
-  const handleAcceptRequest = (req: ServiceRequest) => {
+  const handleAcceptRequest = async (req: ServiceRequest) => {
     try {
       const updated = acceptServiceRequest(req, activeWorker);
+      await dbService.saveServiceRequest(updated);
       setServiceRequests(serviceRequests.map((r) => (r.id === req.id ? updated : r)));
+      await syncService.enqueueOfflineAction('service_request', 'update', updated, `idem_accept_${req.id}`);
       showNotification('success', 'Job Accepted', `You have accepted "${req.title}". Contact details are unlocked.`);
     } catch (err: any) {
       showNotification('error', 'Cannot Accept Task', err.message);
@@ -158,20 +205,24 @@ export const CommunityWorkforcePage: React.FC = () => {
     showNotification('info', 'Task Passed', `You passed on "${req.title}".`);
   };
 
-  const handleStartJob = (req: ServiceRequest) => {
+  const handleStartJob = async (req: ServiceRequest) => {
     const updated = updateServiceRequestStatus(req, 'in_progress');
+    await dbService.saveServiceRequest(updated);
     setServiceRequests(serviceRequests.map((r) => (r.id === req.id ? updated : r)));
+    await syncService.enqueueOfflineAction('service_request', 'update', updated, `idem_start_${req.id}`);
     showNotification('info', 'Job In Progress', `Marked "${req.title}" as active on site.`);
   };
 
-  const handleCompleteJob = (
+  const handleCompleteJob = async (
     req: ServiceRequest,
     paymentInr: number,
     paymentMethod: 'cash' | 'upi' | 'waived',
     notes: string
   ) => {
     const updated = recordWorkCompletion(req, paymentInr, paymentMethod, notes);
+    await dbService.saveServiceRequest(updated);
     setServiceRequests(serviceRequests.map((r) => (r.id === req.id ? updated : r)));
+    await syncService.enqueueOfflineAction('service_request', 'update', updated, `idem_complete_${req.id}`);
     showNotification('success', 'Work Completed', `Service completed and payment of ₹${paymentInr} recorded.`);
   };
 

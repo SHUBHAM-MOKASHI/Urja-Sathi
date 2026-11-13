@@ -777,3 +777,57 @@ export interface AdminImpactDashboardData {
   isDemonstrationData: true;
   lastAuditTimestamp: string;
 }
+
+// ==========================================
+// OFFLINE-FIRST SYNCHRONIZATION & QUEUE TYPES
+// ==========================================
+
+export type SyncStatus = 'pending' | 'syncing' | 'synced' | 'failed';
+export type SyncAction = 'create' | 'update' | 'delete';
+export type SyncEntityType =
+  | 'service_request'
+  | 'bill_record'
+  | 'solar_assessment'
+  | 'user_profile'
+  | 'complaint_ticket'
+  | 'feedback';
+
+export interface SyncQueueItem {
+  id: string; // Unique queue task UUID
+  entityType: SyncEntityType;
+  action: SyncAction;
+  payload: any;
+  idempotencyKey: string; // Guaranteed deduplication key
+  timestamp: string; // ISO string when queued
+  syncStatus: SyncStatus;
+  retryCount: number;
+  maxRetries: number;
+  lastError?: string;
+  lastAttemptTimestamp?: string;
+  syncedAt?: string;
+}
+
+export type ConflictResolutionStrategy = 'last_write_wins' | 'server_wins' | 'client_wins';
+
+export interface ConflictRecord {
+  id: string;
+  entityId: string;
+  entityType: SyncEntityType;
+  localVersion: any;
+  incomingVersion: any;
+  resolvedVersion: any;
+  strategy: ConflictResolutionStrategy;
+  resolvedAt: string;
+  notes: string;
+}
+
+export interface OfflineSyncSummary {
+  totalPending: number;
+  totalSyncing: number;
+  totalSynced: number;
+  totalFailed: number;
+  lastSyncTimestamp: string | null;
+  isSyncing: boolean;
+  conflictsResolved: number;
+}
+

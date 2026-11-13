@@ -285,3 +285,4 @@ export const TripartiteImpactCards: React.FC<TripartiteImpactCardsProps> = ({ su
     </div>
   );
 };
+

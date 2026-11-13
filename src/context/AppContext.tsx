@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Language, UserProfile } from '../types';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { Language, UserProfile, OfflineSyncSummary } from '../types';
 import { useOfflineStatus } from '../hooks/useOfflineStatus';
 import { dbService } from '../services/db';
+import { syncService, SyncExecutionResult } from '../services/syncService';
 
 interface AppContextType {
   language: Language;
@@ -16,6 +17,12 @@ interface AppContextType {
   setLastVoiceTranscript: (transcript: string) => void;
   savedBillsCount: number;
   refreshCounters: () => Promise<void>;
+  // Offline sync controls
+  pendingQueueCount: number;
+  isSyncing: boolean;
+  syncSummary: OfflineSyncSummary | null;
+  triggerManualSync: () => Promise<SyncExecutionResult>;
+  refreshOfflineQueue: () => Promise<void>;
 }
 
 const defaultProfile: UserProfile = {
@@ -43,6 +50,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lastVoiceTranscript, setLastVoiceTranscript] = useState<string>('');
   const [savedBillsCount, setSavedBillsCount] = useState<number>(0);
 
+  // Offline queue state
+  const [pendingQueueCount, setPendingQueueCount] = useState<number>(0);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncSummary, setSyncSummary] = useState<OfflineSyncSummary | null>(null);
+
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     localStorage.setItem('urja_language', lang);
@@ -54,6 +66,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSavedBillsCount(bills.length);
     } catch {
       // Graceful fallback if indexedDB is initializing
+    }
+  };
+
+  const refreshOfflineQueue = useCallback(async () => {
+    try {
+      const summary = await syncService.getOfflineSyncSummary();
+      setSyncSummary(summary);
+      setPendingQueueCount(summary.totalPending + summary.totalFailed);
+    } catch {
+      // Graceful fallback
+    }
+  }, []);
+
+  const triggerManualSync = async (): Promise<SyncExecutionResult> => {
+    setIsSyncing(true);
+    try {
+      const result = await syncService.syncPendingRecords();
+      await refreshOfflineQueue();
+      await refreshCounters();
+      return result;
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -71,12 +105,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           await dbService.saveUserProfile(defaultProfile);
         }
         await refreshCounters();
+        await refreshOfflineQueue();
       } catch (err) {
         console.warn('Initial data load warning:', err);
       }
     };
     initData();
-  }, []);
+
+    // Listen to queue changes across components
+    const handleQueueChanged = () => {
+      refreshOfflineQueue();
+    };
+
+    window.addEventListener('urja-offline-queue-changed', handleQueueChanged);
+    const unregisterAutoSync = syncService.initAutoSync();
+
+    return () => {
+      window.removeEventListener('urja-offline-queue-changed', handleQueueChanged);
+      unregisterAutoSync();
+    };
+  }, [refreshOfflineQueue]);
 
   const updateUserProfile = async (partial: Partial<UserProfile>) => {
     const updated = { ...userProfile, ...partial };
@@ -103,6 +151,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLastVoiceTranscript,
         savedBillsCount,
         refreshCounters,
+        pendingQueueCount,
+        isSyncing,
+        syncSummary,
+        triggerManualSync,
+        refreshOfflineQueue,
       }}
     >
       {children}
@@ -117,4 +170,3 @@ export function useApp() {
   }
   return context;
 }
-

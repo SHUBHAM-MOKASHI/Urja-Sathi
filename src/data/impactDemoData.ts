@@ -443,3 +443,4 @@ export function getDemoAdminImpactData(): AdminImpactDashboardData {
     lastAuditTimestamp: new Date().toISOString(),
   };
 }
+

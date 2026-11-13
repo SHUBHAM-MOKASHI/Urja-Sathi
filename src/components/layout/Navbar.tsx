@@ -25,7 +25,7 @@ import { VoiceAssistantModal } from '../voice/VoiceAssistantModal';
 import { Language } from '../../types';
 
 export const Navbar: React.FC = () => {
-  const { isOnline, language, setLanguage } = useApp();
+  const { isOnline, language, setLanguage, pendingQueueCount } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const location = useLocation();
@@ -94,11 +94,11 @@ export const Navbar: React.FC = () => {
             <div className="hidden sm:flex items-center">
               {isOnline ? (
                 <Badge variant="emerald" size="sm" icon={<Wifi className="w-3 h-3 text-emerald-600" />}>
-                  Online Ready
+                  Online {pendingQueueCount > 0 ? `(${pendingQueueCount} queued)` : ''}
                 </Badge>
               ) : (
                 <Badge variant="amber" size="sm" icon={<WifiOff className="w-3 h-3 text-amber-600" />}>
-                  Offline Mode
+                  Offline Mode {pendingQueueCount > 0 ? `(${pendingQueueCount})` : ''}
                 </Badge>
               )}
             </div>
