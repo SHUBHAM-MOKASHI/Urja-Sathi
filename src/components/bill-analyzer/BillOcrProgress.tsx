@@ -87,3 +87,4 @@ export const BillOcrProgress: React.FC<BillOcrProgressProps> = ({
     </div>
   );
 };
+

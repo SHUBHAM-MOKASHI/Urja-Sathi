@@ -224,3 +224,4 @@ export async function createSampleBillFile(sample: SampleBillOption): Promise<Fi
     }, 'image/jpeg', 0.95);
   });
 }
+

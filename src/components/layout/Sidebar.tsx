@@ -8,6 +8,7 @@ import {
   Settings,
   HardDriveDownload,
   Info,
+  Lightbulb,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -17,6 +18,7 @@ export const Sidebar: React.FC = () => {
   const links = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/bills', label: 'Bill Analyzer', icon: FileSpreadsheet, badge: savedBillsCount > 0 ? `${savedBillsCount}` : undefined },
+    { to: '/savings', label: 'Savings Planner', icon: Lightbulb },
     { to: '/solar', label: 'Solar ROI Audit', icon: Sun },
     { to: '/workforce', label: 'Community Workforce', icon: Users },
     { to: '/settings', label: 'Settings & Cache', icon: Settings },

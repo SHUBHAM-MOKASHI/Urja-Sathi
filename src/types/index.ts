@@ -153,3 +153,107 @@ export interface EnergyTip {
   effortLevel: 'easy' | 'moderate' | 'advanced';
   iconName: string;
 }
+
+// ==========================================
+// ENERGY SAVINGS INTELLIGENCE ENGINE TYPES
+// ==========================================
+
+export type ApplianceCategory =
+  | 'air_conditioner'
+  | 'refrigerator'
+  | 'ceiling_fan'
+  | 'lighting'
+  | 'water_heater'
+  | 'television'
+  | 'washing_machine'
+  | 'air_cooler'
+  | 'water_pump'
+  | 'cooking_appliance'
+  | 'other';
+
+export interface ApplianceInput {
+  id: string;
+  name: string;
+  category: ApplianceCategory;
+  quantity: number;
+  wattage: number; // Watts
+  dailyUsageHours: number; // 0 - 24
+  starRating?: number; // BEE Star 1-5
+  ageYears?: number;
+  temperatureSetpointC?: number; // for ACs, e.g. 18 - 28
+  standbyHours?: number; // for electronics plugged in while off
+}
+
+export interface ApplianceBreakdown {
+  id: string;
+  name: string;
+  category: ApplianceCategory;
+  quantity: number;
+  wattage: number;
+  dailyUsageHours: number;
+  dailyKwh: number;
+  monthlyKwh: number;
+  monthlyCostInr: number;
+  percentageOfTotal: number;
+}
+
+export interface TariffConfiguration {
+  baseRatePerKwh: number;
+  marginalRatePerKwh: number;
+  fixedChargesInr: number;
+  discomName: string;
+  isIllustrativeEstimate: boolean;
+}
+
+export interface SavingsRecommendation {
+  id: string;
+  action: string;
+  category: 'no_cost' | 'low_cost' | 'investment';
+  reason: string;
+  estimatedEnergyReductionKwh: number;
+  estimatedMonetaryBenefitInr: number;
+  upfrontExpenditureInr: number;
+  paybackPeriodMonths: number | null; // null for no-cost actions
+  assumptions: string[];
+  confidence: 'high' | 'moderate' | 'low';
+  evidenceQuality: string;
+  suggestedNextStep: string;
+  targetApplianceCategory?: ApplianceCategory;
+  isWithinBudget: boolean;
+  affordabilityScore: number; // 0 - 100
+  rankScore: number;
+}
+
+export interface EnergyEngineInput {
+  billedUnitsKwh: number;
+  billAmountInr: number;
+  billingPeriodDays?: number; // default 30
+  householdMembers: number; // default 4
+  appliances: ApplianceInput[];
+  userBudgetInr: number; // e.g. 0, 1000, 5000, 25000
+  tariffConfig?: Partial<TariffConfiguration>;
+}
+
+export type EngineStatus = 'success' | 'insufficient_evidence' | 'invalid_input';
+
+export interface EngineAnalysisResult {
+  status: EngineStatus;
+  statusMessage: string;
+  dailyAverageBilledKwh: number;
+  monthlyBilledKwh: number;
+  billedAmountInr: number;
+  effectiveTariffPerKwh: number;
+  marginalTariffPerKwh: number;
+  billingPeriodDays: number;
+  isBillingPeriodValid: boolean;
+  totalApplianceCalculatedKwh: number;
+  unaccountedOrBaseLoadKwh: number;
+  applianceBreakdown: ApplianceBreakdown[];
+  recommendations: SavingsRecommendation[];
+  potentialMonthlyKwhSavings: number;
+  potentialMonthlyInrSavings: number;
+  totalUpfrontCostForRecommendedInr: number;
+  co2ReductionKgPerMonth: number;
+  diagnostics: string[];
+  tariffAssumptions: TariffConfiguration;
+}
