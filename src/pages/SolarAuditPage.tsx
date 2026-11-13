@@ -257,3 +257,4 @@ export const SolarAuditPage: React.FC = () => {
     </div>
   );
 };
+

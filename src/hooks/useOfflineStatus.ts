@@ -25,3 +25,4 @@ export function useOfflineStatus() {
 
   return { isOnline, isOffline: !isOnline, wasOffline };
 }
+

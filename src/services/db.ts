@@ -146,3 +146,4 @@ export const dbService = {
     await db.put('userProfile', { ...profile, id: 'default_user' });
   },
 };
+

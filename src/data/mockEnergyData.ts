@@ -236,3 +236,4 @@ export const MOCK_QUOTATIONS: InstallerQuotation[] = [
     status: 'draft',
   },
 ];
+

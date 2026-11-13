@@ -74,21 +74,19 @@ export const CommunityWorkforcePage: React.FC = () => {
         <div className="flex bg-slate-100 p-1 rounded-xl self-start md:self-auto border border-slate-200/80">
           <button
             onClick={() => setActiveTab('workers')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'workers'
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'workers'
                 ? 'bg-white text-emerald-800 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
-            }`}
+              }`}
           >
             Local Technicians ({MOCK_WORKERS.length})
           </button>
           <button
             onClick={() => setActiveTab('installers')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'installers'
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'installers'
                 ? 'bg-white text-emerald-800 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
-            }`}
+              }`}
           >
             Solar Quotations ({MOCK_QUOTATIONS.length})
           </button>
@@ -109,11 +107,10 @@ export const CommunityWorkforcePage: React.FC = () => {
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                  selectedCategory === cat.id
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${selectedCategory === cat.id
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
+                  }`}
               >
                 {cat.label}
               </button>

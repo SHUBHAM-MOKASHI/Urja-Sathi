@@ -94,3 +94,4 @@ export const SolarProductionChart: React.FC<SolarProductionChartProps> = ({
     </div>
   );
 };
+

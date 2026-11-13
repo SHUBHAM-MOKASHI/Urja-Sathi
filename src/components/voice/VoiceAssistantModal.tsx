@@ -183,3 +183,4 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen
     </Modal>
   );
 };
+

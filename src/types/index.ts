@@ -15,8 +15,9 @@ export interface UserProfile {
 
 export interface ElectricityBill {
   id: string;
-  billMonth: string; // e.g. "2024-10"
+  billMonth: string; // e.g. "2024-10" or "October 2024"
   consumerNumber: string;
+  consumerName?: string;
   unitsConsumed: number; // kWh
   totalAmount: number; // INR
   tariffRatePerUnit: number;
@@ -24,8 +25,15 @@ export interface ElectricityBill {
   surcharges: number;
   dueDate: string;
   billDate: string;
+  billingPeriod?: string;
+  previousReading?: number;
+  currentReading?: number;
   isPeakSeason: boolean;
   source: 'ocr_scan' | 'manual' | 'sample';
+  ocrConfidence?: number;
+  rawOcrText?: string;
+  isDuplicate?: boolean;
+  userEdited?: boolean;
   slabBreakdown?: {
     slabName: string;
     units: number;
@@ -33,6 +41,39 @@ export interface ElectricityBill {
     amount: number;
   }[];
   createdAt: string;
+}
+
+export interface FieldExtractionResult<T> {
+  value: T | null;
+  confidence: number; // 0 - 100
+  rawMatch?: string;
+  isManual?: boolean;
+}
+
+export interface ParsedBillData {
+  consumerName: FieldExtractionResult<string>;
+  consumerNumber: FieldExtractionResult<string>;
+  totalAmount: FieldExtractionResult<number>;
+  unitsConsumed: FieldExtractionResult<number>;
+  billingPeriod: FieldExtractionResult<string>;
+  previousReading: FieldExtractionResult<number>;
+  currentReading: FieldExtractionResult<number>;
+  billDate: FieldExtractionResult<string>;
+  dueDate: FieldExtractionResult<string>;
+  overallConfidence: number;
+  normalizedText: string;
+  warnings: string[];
+}
+
+export interface BillValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface OcrProgress {
+  status: string;
+  progress: number; // 0.0 - 1.0
 }
 
 export interface ApplianceEnergyUsage {

@@ -65,3 +65,4 @@ export const SlabBreakdownChart: React.FC<SlabBreakdownChartProps> = ({ slabs })
     </div>
   );
 };
+

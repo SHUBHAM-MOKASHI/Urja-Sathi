@@ -51,3 +51,4 @@ export const Skeleton: React.FC<{ className?: string }> = ({ className }) => {
     />
   );
 };
+
