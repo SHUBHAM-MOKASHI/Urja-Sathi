@@ -1,441 +1,665 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/common/Card';
-import { Button } from '../components/common/Button';
-import { Badge } from '../components/common/Badge';
-import { Modal } from '../components/common/Modal';
-import { MOCK_WORKERS, MOCK_QUOTATIONS } from '../data/mockEnergyData';
-import { formatCurrency } from '../utils/formatters';
-import { useNotification } from '../context/NotificationContext';
-import { EnergyWorker, InstallerQuotation } from '../types';
+import React, { useState, useEffect } from 'react';
 import {
-  Award,
-  Star,
-  MapPin,
-  Phone,
+  DetailedWorkerProfile,
+  ServiceRequest,
+} from '../types';
+import { SAMPLE_WORKERS, SAMPLE_SERVICE_REQUESTS } from '../data/workerData';
+import {
+  filterWorkers,
+  createServiceRequest,
+  acceptServiceRequest,
+  updateServiceRequestStatus,
+  recordWorkCompletion,
+  submitHouseholdFeedback,
+  raiseComplaintTicket,
+} from '../services/workforceMatchingService';
+import { WorkerCard } from '../components/workforce/WorkerCard';
+import { WorkerProfileModal } from '../components/workforce/WorkerProfileModal';
+import { CreateServiceRequestModal } from '../components/workforce/CreateServiceRequestModal';
+import { ServiceRequestTrackingCard } from '../components/workforce/ServiceRequestTrackingCard';
+import { ComplaintModal } from '../components/workforce/ComplaintModal';
+import { WorkerRegistrationModal } from '../components/workforce/WorkerRegistrationModal';
+import { Button } from '../components/common/Button';
+import { StatCard } from '../components/common/StatCard';
+import { Badge } from '../components/common/Badge';
+import { useNotification } from '../context/NotificationContext';
+import {
+  Users,
+  ShieldCheck,
+  Plus,
+  Search,
+  Briefcase,
+  Home,
   CheckCircle2,
-  Calendar,
-  Zap,
+  AlertTriangle,
+  Lock,
+  UserCheck,
+  Filter,
+  Wrench,
 } from 'lucide-react';
 
 export const CommunityWorkforcePage: React.FC = () => {
   const { showNotification } = useNotification();
-  const [activeTab, setActiveTab] = useState<'workers' | 'installers'>('workers');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedWorker, setSelectedWorker] = useState<EnergyWorker | null>(null);
-  const [selectedQuote, setSelectedQuote] = useState<InstallerQuotation | null>(null);
 
-  const [bookingName, setBookingName] = useState('');
-  const [bookingPhone, setBookingPhone] = useState('');
-  const [bookingDate, setBookingDate] = useState('');
-  const [bookingNotes, setBookingNotes] = useState('');
+  // Mode: Household vs Worker Dashboard
+  const [activeMode, setActiveMode] = useState<'household' | 'worker'>('household');
 
-  const filteredWorkers = MOCK_WORKERS.filter((worker) => {
-    if (selectedCategory === 'all') return true;
-    return worker.category === selectedCategory;
+  // Core Data State (Initialized with sample data, persists in component session)
+  const [workers, setWorkers] = useState<DetailedWorkerProfile[]>(() => {
+    try {
+      const saved = localStorage.getItem('urja_saathi_workers');
+      return saved ? JSON.parse(saved) : SAMPLE_WORKERS;
+    } catch {
+      return SAMPLE_WORKERS;
+    }
   });
 
-  const handleBookWorker = (e: React.FormEvent) => {
-    e.preventDefault();
-    showNotification(
-      'success',
-      'Work Request Dispatched',
-      `Booking request sent to ${selectedWorker?.name}. Saved to offline dispatch queue.`
-    );
-    setSelectedWorker(null);
-    setBookingName('');
-    setBookingPhone('');
-    setBookingDate('');
-    setBookingNotes('');
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>(() => {
+    try {
+      const saved = localStorage.getItem('urja_saathi_requests');
+      return saved ? JSON.parse(saved) : SAMPLE_SERVICE_REQUESTS;
+    } catch {
+      return SAMPLE_SERVICE_REQUESTS;
+    }
+  });
+
+  // Active Worker selected when in Worker Dashboard mode
+  const [activeWorkerId, setActiveWorkerId] = useState<string>(SAMPLE_WORKERS[0].id);
+
+  // Household Filter & Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [availableOnly, setAvailableOnly] = useState(false);
+
+  // Modals state
+  const [selectedWorkerForProfile, setSelectedWorkerForProfile] = useState<DetailedWorkerProfile | null>(null);
+  const [isCreateRequestOpen, setIsCreateRequestOpen] = useState(false);
+  const [preselectedWorkerForBooking, setPreselectedWorkerForBooking] = useState<DetailedWorkerProfile | null>(null);
+  const [requestForComplaint, setRequestForComplaint] = useState<ServiceRequest | null>(null);
+  const [isWorkerRegisterOpen, setIsWorkerRegisterOpen] = useState(false);
+
+  // Persist state updates to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('urja_saathi_workers', JSON.stringify(workers));
+    } catch (e) {
+      console.warn('LocalStorage save failed for workers:', e);
+    }
+  }, [workers]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urja_saathi_requests', JSON.stringify(serviceRequests));
+    } catch (e) {
+      console.warn('LocalStorage save failed for requests:', e);
+    }
+  }, [serviceRequests]);
+
+  const activeWorker = workers.find((w) => w.id === activeWorkerId) || workers[0];
+
+  // -------------------------------------------------------------
+  // HOUSEHOLD HANDLERS
+  // -------------------------------------------------------------
+  const handleCreateRequest = (
+    data: Omit<ServiceRequest, 'id' | 'createdAt' | 'status' | 'isTechnical'>
+  ) => {
+    try {
+      const newReq = createServiceRequest(data);
+      setServiceRequests([newReq, ...serviceRequests]);
+      showNotification('success', 'Service Request Dispatched', `Request "${newReq.title}" has been registered.`);
+    } catch (err: any) {
+      showNotification('error', 'Request Creation Failed', err.message);
+    }
   };
 
-  const handleAcceptQuote = (quote: InstallerQuotation) => {
-    showNotification(
-      'success',
-      'Quotation Selected',
-      `Quotation from ${quote.installerName} shortlisted. Project proposal saved locally.`
-    );
-    setSelectedQuote(null);
+  const handleCancelRequest = (req: ServiceRequest) => {
+    const updated = updateServiceRequestStatus(req, 'cancelled');
+    setServiceRequests(serviceRequests.map((r) => (r.id === req.id ? updated : r)));
+    showNotification('info', 'Request Cancelled', `Service request "${req.title}" was cancelled.`);
   };
+
+  const handleSubmitFeedback = (req: ServiceRequest, rating: number, review: string) => {
+    const updated = submitHouseholdFeedback(req, rating, review);
+    setServiceRequests(serviceRequests.map((r) => (r.id === req.id ? updated : r)));
+    showNotification('success', 'Review Submitted', 'Thank you for rating your service experience!');
+  };
+
+  const handleRaiseComplaint = (
+    requestId: string,
+    issueType: 'safety_concern' | 'unqualified_work' | 'overcharging' | 'no_show' | 'other',
+    details: string
+  ) => {
+    const target = serviceRequests.find((r) => r.id === requestId);
+    if (!target) return;
+    const updated = raiseComplaintTicket(target, issueType, details);
+    setServiceRequests(serviceRequests.map((r) => (r.id === requestId ? updated : r)));
+    showNotification(
+      'warning',
+      'Complaint Ticket Raised',
+      `Ticket #${updated.complaintTicket?.id} recorded. Our safety coordinator will audit this concern.`
+    );
+  };
+
+  // -------------------------------------------------------------
+  // WORKER HANDLERS
+  // -------------------------------------------------------------
+  const handleAcceptRequest = (req: ServiceRequest) => {
+    try {
+      const updated = acceptServiceRequest(req, activeWorker);
+      setServiceRequests(serviceRequests.map((r) => (r.id === req.id ? updated : r)));
+      showNotification('success', 'Job Accepted', `You have accepted "${req.title}". Contact details are unlocked.`);
+    } catch (err: any) {
+      showNotification('error', 'Cannot Accept Task', err.message);
+    }
+  };
+
+  const handleRejectRequest = (req: ServiceRequest) => {
+    showNotification('info', 'Task Passed', `You passed on "${req.title}".`);
+  };
+
+  const handleStartJob = (req: ServiceRequest) => {
+    const updated = updateServiceRequestStatus(req, 'in_progress');
+    setServiceRequests(serviceRequests.map((r) => (r.id === req.id ? updated : r)));
+    showNotification('info', 'Job In Progress', `Marked "${req.title}" as active on site.`);
+  };
+
+  const handleCompleteJob = (
+    req: ServiceRequest,
+    paymentInr: number,
+    paymentMethod: 'cash' | 'upi' | 'waived',
+    notes: string
+  ) => {
+    const updated = recordWorkCompletion(req, paymentInr, paymentMethod, notes);
+    setServiceRequests(serviceRequests.map((r) => (r.id === req.id ? updated : r)));
+    showNotification('success', 'Work Completed', `Service completed and payment of ₹${paymentInr} recorded.`);
+  };
+
+  const handleToggleWorkerAvailability = () => {
+    const updatedWorker = { ...activeWorker, isAvailableToday: !activeWorker.isAvailableToday };
+    setWorkers(workers.map((w) => (w.id === activeWorker.id ? updatedWorker : w)));
+    showNotification(
+      'info',
+      'Availability Updated',
+      `You are now ${updatedWorker.isAvailableToday ? 'ONLINE and available for jobs' : 'OFFLINE'}.`
+    );
+  };
+
+  const handleSaveWorkerProfile = (savedProfile: DetailedWorkerProfile) => {
+    const exists = workers.some((w) => w.id === savedProfile.id);
+    let updated: DetailedWorkerProfile[];
+    if (exists) {
+      updated = workers.map((w) => (w.id === savedProfile.id ? savedProfile : w));
+    } else {
+      updated = [...workers, savedProfile];
+      setActiveWorkerId(savedProfile.id);
+    }
+    setWorkers(updated);
+    showNotification('success', 'Profile Saved', `Worker profile for ${savedProfile.name} was updated.`);
+  };
+
+  // Filtered workers list for Household directory
+  const filteredWorkers = filterWorkers(workers, {
+    searchQuery,
+    category: categoryFilter,
+    verifiedOnly,
+    availableOnly,
+  });
+
+  // Filtered requests for Household view (all requests in session)
+  const householdRequests = serviceRequests;
+
+  // Filtered requests for Worker view
+  // 1. Available requests (status: 'pending') that are eligible for this worker
+  const availableWorkerRequests = serviceRequests.filter(
+    (r) => r.status === 'pending'
+  );
+
+  // 2. Worker's active and completed jobs
+  const myWorkerJobs = serviceRequests.filter(
+    (r) => r.assignedWorkerId === activeWorker.id
+  );
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Community Workforce & Solar Installers
+    <div className="space-y-8 pb-12">
+      {/* Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-forest-950 via-forest-900 to-forest-800 text-white p-6 sm:p-8 shadow-xl">
+        <div className="relative z-10 max-w-4xl space-y-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-semibold uppercase tracking-wider backdrop-blur-sm">
+            <Users className="h-3.5 w-3.5 text-emerald-400" />
+            Har Ghar Bachat, Har Haath Kaam • Community Workforce
+          </div>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight">
+            Community Energy Worker & Service Matching
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            "Har Haath Kaam" — Connecting homes with certified Surya Mitra technicians and transparent solar quotations.
+          <p className="text-sm sm:text-base text-slate-300 font-normal leading-relaxed">
+            Connecting households with independently verified Surya Mitra solar technicians, licensed wiremen,
+            and non-technical community energy guides. Strict licensing checks prevent unqualified electrical work,
+            with zero solar sales kickbacks.
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex bg-slate-100 p-1 rounded-xl self-start md:self-auto border border-slate-200/80">
-          <button
-            onClick={() => setActiveTab('workers')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'workers'
-                ? 'bg-white text-emerald-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-              }`}
-          >
-            Local Technicians ({MOCK_WORKERS.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('installers')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'installers'
-                ? 'bg-white text-emerald-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-              }`}
-          >
-            Solar Quotations ({MOCK_QUOTATIONS.length})
-          </button>
-        </div>
+        {/* Decorative background glow */}
+        <div className="absolute -right-12 -top-12 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
       </div>
 
-      {activeTab === 'workers' ? (
-        <div className="space-y-6">
-          {/* Category Filter Pills */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-semibold text-slate-500 mr-2">Filter Skill:</span>
-            {[
-              { id: 'all', label: 'All Technicians' },
-              { id: 'solar_technician', label: 'Surya Mitra / Solar' },
-              { id: 'electrician', label: 'Licensed Electricians' },
-              { id: 'energy_auditor', label: 'Energy Auditors' },
-            ].map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${selectedCategory === cat.id
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                  }`}
-              >
-                {cat.label}
-              </button>
-            ))}
+      {/* DUAL INTERFACE TOGGLE TABS */}
+      <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-center max-w-md mx-auto">
+        <button
+          type="button"
+          onClick={() => setActiveMode('household')}
+          className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            activeMode === 'household'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <Home className="h-4 w-4" />
+          <span>Household Dashboard</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveMode('worker')}
+          className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            activeMode === 'worker'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <Briefcase className="h-4 w-4" />
+          <span>Worker Portal</span>
+        </button>
+      </div>
+
+      {/* ============================================================== */}
+      {/* INTERFACE 1: HOUSEHOLD DASHBOARD VIEW                          */}
+      {/* ============================================================== */}
+      {activeMode === 'household' ? (
+        <div className="space-y-8">
+          {/* Household KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              title="Verified Technicians"
+              value={workers.filter((w) => w.verificationStatus === 'verified_licensed').length}
+              subtitle="Licensed Wiremen & Surya Mitras"
+              icon={<ShieldCheck className="h-5 w-5 text-emerald-600" />}
+            />
+            <StatCard
+              title="Community Energy Guides"
+              value={workers.filter((w) => w.roleCategory === 'community_energy_guide').length}
+              subtitle="Non-technical bill & portal guides"
+              icon={<Users className="h-5 w-5 text-amber-600" />}
+            />
+            <StatCard
+              title="Active Service Requests"
+              value={householdRequests.filter((r) => r.status !== 'completed' && r.status !== 'cancelled').length}
+              subtitle="Dispatched in your locality"
+              icon={<Wrench className="h-5 w-5 text-sky-600" />}
+            />
+            <StatCard
+              title="Verified Work Guarantee"
+              value="100%"
+              subtitle="Zero sales referral commissions"
+              icon={<UserCheck className="h-5 w-5 text-forest-700" />}
+            />
           </div>
 
-          {/* Technicians Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredWorkers.map((worker) => (
-              <Card key={worker.id} hoverEffect className="flex flex-col justify-between p-6">
-                <div className="space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-bold text-lg text-slate-900">{worker.name}</h3>
-                      <p className="text-xs text-emerald-700 font-semibold capitalize flex items-center gap-1 mt-0.5">
-                        <Award className="w-3.5 h-3.5" />
-                        {worker.category.replace('_', ' ')}
-                      </p>
-                    </div>
-                    {worker.isAvailableToday ? (
-                      <Badge variant="emerald" size="sm">
-                        Available Today
-                      </Badge>
-                    ) : (
-                      <Badge variant="slate" size="sm">
-                        Available Tomorrow
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>{worker.locality}</span>
-                  </div>
-
-                  {/* Rating & Experience */}
-                  <div className="flex items-center gap-4 text-xs pt-1">
-                    <span className="flex items-center gap-1 font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
-                      <Star className="w-3.5 h-3.5 fill-amber-500" />
-                      {worker.rating} ({worker.reviewCount})
-                    </span>
-                    <span className="text-slate-600">
-                      <strong>{worker.experienceYears}</strong> yrs exp.
-                    </span>
-                    <span className="text-slate-600">
-                      <strong>{worker.completedJobs}</strong> jobs done
-                    </span>
-                  </div>
-
-                  {/* Certifications */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                    <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                      Credentials
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {worker.certifications.map((cert, idx) => (
-                        <span
-                          key={idx}
-                          className="text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium"
-                        >
-                          {cert}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Skills tags */}
-                  <div className="flex flex-wrap gap-1">
-                    {worker.skills.slice(0, 3).map((skill, idx) => (
-                      <span
-                        key={idx}
-                        className="text-[11px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-md"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
+          {/* Household Service Requests Tracking Section */}
+          {householdRequests.length > 0 && (
+            <div className="space-y-4 bg-slate-50/70 p-5 rounded-3xl border border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Wrench className="h-4 w-4 text-emerald-600" />
+                    Your Tracked Service Requests
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Track status, confirm completed visits, submit ratings, or lodge complaints.
+                  </p>
                 </div>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    setPreselectedWorkerForBooking(null);
+                    setIsCreateRequestOpen(true);
+                  }}
+                  icon={<Plus className="h-4 w-4" />}
+                >
+                  Create Request
+                </Button>
+              </div>
 
-                {/* Footer action */}
-                <div className="pt-5 mt-4 border-t border-slate-100 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold">Standard Rate</span>
-                    <p className="font-bold text-slate-900 text-sm">
-                      ₹{worker.hourlyRateInr} <span className="text-xs text-slate-500 font-normal">/ hr</span>
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => setSelectedWorker(worker)}
-                    icon={<Phone className="w-3.5 h-3.5" />}
-                  >
-                    Hire Worker
-                  </Button>
-                </div>
-              </Card>
-            ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {householdRequests.map((req) => (
+                  <ServiceRequestTrackingCard
+                    key={req.id}
+                    request={req}
+                    mode="household"
+                    onCancelRequest={handleCancelRequest}
+                    onCompleteJob={handleCompleteJob}
+                    onSubmitFeedback={handleSubmitFeedback}
+                    onRaiseComplaint={(r) => setRequestForComplaint(r)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Search, Filter & Action Bar */}
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="h-4 w-4 text-slate-400 absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  placeholder="Search by worker name, locality, skills, or certification (e.g. Surya Mitra)..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full text-xs pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setPreselectedWorkerForBooking(null);
+                  setIsCreateRequestOpen(true);
+                }}
+                icon={<Plus className="h-4 w-4" />}
+                className="shrink-0"
+              >
+                Request Service Visit
+              </Button>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold text-slate-500 flex items-center gap-1">
+                  <Filter className="h-3.5 w-3.5" /> Filter Role:
+                </span>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="text-xs p-1.5 rounded-lg border border-slate-300 bg-white"
+                >
+                  <option value="all">All Worker Roles</option>
+                  <option value="surya_mitra_technician">Surya Mitra (Solar Tech)</option>
+                  <option value="licensed_wireman">Licensed Wireman (Electrician)</option>
+                  <option value="energy_auditor">BEE Energy Auditor</option>
+                  <option value="community_energy_guide">Community Energy Guide</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={verifiedOnly}
+                    onChange={(e) => setVerifiedOnly(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded text-emerald-600"
+                  />
+                  <span>Govt Verified License Only</span>
+                </label>
+
+                <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={availableOnly}
+                    onChange={(e) => setAvailableOnly(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded text-emerald-600"
+                  />
+                  <span>Available Today</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Workers Directory Grid */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span>Showing {filteredWorkers.length} practitioners in directory</span>
+              <span className="italic">All demo profiles clearly labeled for hackathon verification</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredWorkers.map((worker) => (
+                <WorkerCard
+                  key={worker.id}
+                  worker={worker}
+                  onViewProfile={(w) => setSelectedWorkerForProfile(w)}
+                  onBook={(w) => {
+                    setPreselectedWorkerForBooking(w);
+                    setIsCreateRequestOpen(true);
+                  }}
+                />
+              ))}
+            </div>
+
+            {filteredWorkers.length === 0 && (
+              <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center space-y-2 max-w-md mx-auto">
+                <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-800">No matching workers found</h4>
+                <p className="text-xs text-slate-500">
+                  Try adjusting your filter keywords or clearing the "Govt Verified Only" toggle.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       ) : (
-        /* Solar Installers Quotation Comparison */
-        <div className="space-y-6">
-          <Card>
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <CardTitle>Rooftop Solar Quotations & Bids</CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Standardized 3 kW residential grid-tied proposals with PM Surya Ghar subsidy coordination
-                </p>
-              </div>
+        /* ============================================================== */
+        /* INTERFACE 2: WORKER DASHBOARD VIEW                             */
+        /* ============================================================== */
+        <div className="space-y-8">
+          {/* Worker Profile Switcher (For demo walkthrough) */}
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                Active Worker Profile Switcher (Demo Mode)
+              </span>
               <div className="flex items-center gap-2">
-                <Link
-                  to="/quotations"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors"
+                <select
+                  value={activeWorkerId}
+                  onChange={(e) => setActiveWorkerId(e.target.value)}
+                  className="text-sm font-bold text-slate-900 rounded-xl border border-slate-300 p-2 bg-slate-50 focus:ring-2 focus:ring-emerald-500"
                 >
-                  Advanced Quotation Comparison →
-                </Link>
-                <Badge variant="emerald" size="sm">
-                  Empanelled Vendors
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {MOCK_QUOTATIONS.map((quote) => (
-                  <div
-                    key={quote.id}
-                    className="p-5 rounded-2xl border border-slate-200 hover:border-emerald-300 hover:shadow-premium transition-all flex flex-col justify-between space-y-4 bg-white"
-                  >
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-bold text-slate-900 text-base">{quote.installerName}</h4>
-                          <div className="flex items-center gap-1.5 text-xs text-amber-600 font-semibold mt-1">
-                            <Star className="w-3.5 h-3.5 fill-amber-500" />
-                            <span>{quote.rating}</span>
-                            <span className="text-slate-400">({quote.completedProjects} installs)</span>
-                          </div>
-                        </div>
-                        {quote.verifiedPartner && (
-                          <Badge variant="emerald" size="sm" icon={<CheckCircle2 className="w-3 h-3 text-emerald-600" />}>
-                            Empanelled
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">System Capacity:</span>
-                          <span className="font-bold text-slate-800">{quote.systemSizeKw} kW</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Panel Brand:</span>
-                          <span className="font-semibold text-slate-700">{quote.panelBrand}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Inverter:</span>
-                          <span className="font-semibold text-slate-700">{quote.inverterBrand}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Warranty:</span>
-                          <span className="font-semibold text-emerald-700">{quote.warrantyYears} Years</span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <span className="text-xs text-slate-400">Total Price (Before Subsidy)</span>
-                        <p className="text-2xl font-black text-slate-900">
-                          {formatCurrency(quote.totalQuotationAmount)}
-                        </p>
-                        <p className="text-xs text-emerald-700 font-semibold">
-                          Net after ₹78,000 subsidy: {formatCurrency(quote.totalQuotationAmount - 78000)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <Button
-                      onClick={() => setSelectedQuote(quote)}
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                    >
-                      View Full Quotation
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Booking Modal */}
-      {selectedWorker && (
-        <Modal
-          isOpen={!!selectedWorker}
-          onClose={() => setSelectedWorker(null)}
-          title={`Hire ${selectedWorker.name}`}
-          description={`Rate: ₹${selectedWorker.hourlyRateInr}/hr • ${selectedWorker.locality}`}
-          maxWidth="md"
-        >
-          <form onSubmit={handleBookWorker} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Your Full Name</label>
-              <input
-                type="text"
-                required
-                value={bookingName}
-                onChange={(e) => setBookingName(e.target.value)}
-                placeholder="e.g. Ramesh Patel"
-                className="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Phone Number</label>
-              <input
-                type="tel"
-                required
-                value={bookingPhone}
-                onChange={(e) => setBookingPhone(e.target.value)}
-                placeholder="+91 98765 43210"
-                className="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Preferred Date</label>
-              <input
-                type="date"
-                required
-                value={bookingDate}
-                onChange={(e) => setBookingDate(e.target.value)}
-                className="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Issue / Work Details</label>
-              <textarea
-                rows={3}
-                value={bookingNotes}
-                onChange={(e) => setBookingNotes(e.target.value)}
-                placeholder="e.g. Need earthing check and solar inverter wiring review"
-                className="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            <div className="pt-2 flex justify-end gap-2">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedWorker(null)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="primary" size="sm" icon={<Calendar className="w-4 h-4" />}>
-                Confirm Request
-              </Button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Quotation Detail Modal */}
-      {selectedQuote && (
-        <Modal
-          isOpen={!!selectedQuote}
-          onClose={() => setSelectedQuote(null)}
-          title={selectedQuote.installerName}
-          description="Detailed Proposal & Technical Specifications"
-          maxWidth="lg"
-        >
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-4 rounded-xl">
-              <div>
-                <span className="text-slate-400">System Sizing:</span>
-                <p className="font-bold text-slate-800 text-sm">{selectedQuote.systemSizeKw} kW Grid-tied</p>
-              </div>
-              <div>
-                <span className="text-slate-400">Total Price:</span>
-                <p className="font-bold text-slate-800 text-sm">{formatCurrency(selectedQuote.totalQuotationAmount)}</p>
-              </div>
-              <div>
-                <span className="text-slate-400">Solar Modules:</span>
-                <p className="font-medium text-slate-700">{selectedQuote.panelBrand}</p>
-              </div>
-              <div>
-                <span className="text-slate-400">Grid Inverter:</span>
-                <p className="font-medium text-slate-700">{selectedQuote.inverterBrand}</p>
-              </div>
-              <div>
-                <span className="text-slate-400">Installation Lead Time:</span>
-                <p className="font-medium text-slate-700">{selectedQuote.estimatedInstallationDays} business days</p>
-              </div>
-              <div>
-                <span className="text-slate-400">Performance Warranty:</span>
-                <p className="font-bold text-emerald-700">{selectedQuote.warrantyYears} Years Comprehensive</p>
+                  {workers.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name} — {w.roleCategory.replace(/_/g, ' ')} ({w.verificationStatus.replace(/_/g, ' ')})
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsWorkerRegisterOpen(true)}
+                  icon={<Plus className="h-3.5 w-3.5" />}
+                >
+                  Register Profile
+                </Button>
               </div>
             </div>
 
-            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 text-xs space-y-1">
-              <p className="font-bold text-emerald-950 flex items-center gap-1.5">
-                <Zap className="w-4 h-4 text-emerald-600" />
-                PM Surya Ghar Assistance Included
-              </p>
-              <p className="text-emerald-900 leading-relaxed">
-                This installer will manage DISCOM net-meter paperwork, site feasibility documentation, and national portal subsidy claims.
-              </p>
-            </div>
-
-            <div className="pt-2 flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setSelectedQuote(null)}>
-                Close
-              </Button>
+            {/* Availability Toggle */}
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <span className="text-xs font-semibold text-slate-600 block">Status:</span>
+                <span
+                  className={`text-xs font-bold ${
+                    activeWorker.isAvailableToday ? 'text-emerald-700' : 'text-slate-400'
+                  }`}
+                >
+                  {activeWorker.isAvailableToday ? 'ONLINE (Accepting Jobs)' : 'OFFLINE'}
+                </span>
+              </div>
               <Button
-                variant="primary"
+                variant={activeWorker.isAvailableToday ? 'primary' : 'outline'}
                 size="sm"
-                onClick={() => handleAcceptQuote(selectedQuote)}
-                icon={<CheckCircle2 className="w-4 h-4" />}
+                onClick={handleToggleWorkerAvailability}
               >
-                Shortlist & Contact Installer
+                {activeWorker.isAvailableToday ? 'Go Offline' : 'Go Online'}
               </Button>
             </div>
           </div>
-        </Modal>
+
+          {/* Active Worker Profile Highlight Card */}
+          <div className="bg-gradient-to-r from-slate-900 to-forest-950 text-white p-6 rounded-3xl space-y-4 shadow-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xl font-black">{activeWorker.name}</h3>
+                  <Badge variant="emerald" size="sm">
+                    {activeWorker.roleCategory.replace(/_/g, ' ')}
+                  </Badge>
+                  {activeWorker.verificationStatus === 'verified_licensed' ? (
+                    <Badge variant="emerald" size="sm" icon={<ShieldCheck className="h-3 w-3" />}>
+                      Govt Verified
+                    </Badge>
+                  ) : (
+                    <Badge variant="amber" size="sm">
+                      {activeWorker.verificationStatus.replace(/_/g, ' ')}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-slate-300 mt-1">
+                  {activeWorker.locality} ({activeWorker.pincode}) • Standard Rate: ₹{activeWorker.hourlyRateInr}/hr
+                </p>
+              </div>
+
+              <div className="text-left sm:text-right text-xs space-y-1">
+                <div>Rating: <span className="font-bold text-amber-400">{activeWorker.rating}★</span> ({activeWorker.reviewCount} reviews)</div>
+                <div className="text-emerald-400 font-semibold">{activeWorker.completedJobsCount} jobs completed</div>
+              </div>
+            </div>
+
+            {/* Non-Technical Guide Safety Mandate Notice */}
+            {activeWorker.roleCategory === 'community_energy_guide' && (
+              <div className="p-3 bg-amber-500/20 border border-amber-400/40 rounded-xl text-xs text-amber-200 flex items-start gap-2">
+                <Lock className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  <strong>Community Energy Guide Safety Boundary:</strong> You are qualified for vernacular electricity bill literacy, tariff slab explanations, and PM Surya Ghar application document checklists. For public safety, technical electrical wiring and rooftop solar PV installations are restricted to licensed technicians.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* WORKER WORK PIPELINE: AVAILABLE REQUESTS VS MY ACTIVE JOBS */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Column 1: Available Community Requests in Locality */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <Briefcase className="h-4 w-4 text-emerald-600" />
+                    Available Dispatch Requests in Your Circle
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Requests awaiting worker acceptance in {activeWorker.locality.split(',')[0]}
+                  </p>
+                </div>
+                <Badge variant="slate" size="sm">
+                  {availableWorkerRequests.length} Open
+                </Badge>
+              </div>
+
+              {availableWorkerRequests.map((req) => (
+                <ServiceRequestTrackingCard
+                  key={req.id}
+                  request={req}
+                  mode="worker"
+                  currentWorker={activeWorker}
+                  onAccept={handleAcceptRequest}
+                  onReject={handleRejectRequest}
+                />
+              ))}
+
+              {availableWorkerRequests.length === 0 && (
+                <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-400 space-y-1">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-500 mx-auto mb-1" />
+                  <p className="font-bold text-slate-700">No open requests in queue</p>
+                  <p>All service requests in your locality have been assigned.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Column 2: My Accepted & Active Jobs */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    My Active & Completed Pipeline
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Jobs assigned to {activeWorker.name}
+                  </p>
+                </div>
+                <Badge variant="emerald" size="sm">
+                  {myWorkerJobs.length} Jobs
+                </Badge>
+              </div>
+
+              {myWorkerJobs.map((req) => (
+                <ServiceRequestTrackingCard
+                  key={req.id}
+                  request={req}
+                  mode="worker"
+                  currentWorker={activeWorker}
+                  onStartJob={handleStartJob}
+                  onCompleteJob={handleCompleteJob}
+                />
+              ))}
+
+              {myWorkerJobs.length === 0 && (
+                <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-400 space-y-1">
+                  <Briefcase className="h-6 w-6 text-slate-300 mx-auto mb-1" />
+                  <p className="font-bold text-slate-700">No active assigned jobs</p>
+                  <p>Accept an open dispatch from the left panel to begin work.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
+
+      {/* MODALS */}
+      {/* 1. Worker Profile Details Modal */}
+      <WorkerProfileModal
+        isOpen={Boolean(selectedWorkerForProfile)}
+        onClose={() => setSelectedWorkerForProfile(null)}
+        worker={selectedWorkerForProfile}
+        onBook={(w) => {
+          setPreselectedWorkerForBooking(w);
+          setIsCreateRequestOpen(true);
+        }}
+      />
+
+      {/* 2. Create Service Request Modal */}
+      <CreateServiceRequestModal
+        isOpen={isCreateRequestOpen}
+        onClose={() => setIsCreateRequestOpen(false)}
+        onSubmit={handleCreateRequest}
+        preselectedWorker={preselectedWorkerForBooking}
+        availableWorkers={workers}
+      />
+
+      {/* 3. File Complaint Modal */}
+      <ComplaintModal
+        isOpen={Boolean(requestForComplaint)}
+        onClose={() => setRequestForComplaint(null)}
+        request={requestForComplaint}
+        onSubmitComplaint={handleRaiseComplaint}
+      />
+
+      {/* 4. Worker Registration Modal */}
+      <WorkerRegistrationModal
+        isOpen={isWorkerRegisterOpen}
+        onClose={() => setIsWorkerRegisterOpen(false)}
+        onSaveWorker={handleSaveWorkerProfile}
+      />
     </div>
   );
 };

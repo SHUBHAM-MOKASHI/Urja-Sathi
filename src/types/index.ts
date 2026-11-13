@@ -542,3 +542,111 @@ export interface SchemeReadinessResult {
   readyForOfficialSubmission: boolean;
   nextActions: string[];
 }
+
+// ==========================================
+// COMMUNITY WORKER & SERVICE MATCHING TYPES
+// ==========================================
+
+export type WorkerVerificationStatus =
+  | 'verified_licensed' // Independently verified government/council license
+  | 'verification_pending' // Evidence submitted, undergoing review
+  | 'self_declared_only'; // Self-assessed, cannot perform technical electrical work
+
+export type WorkerRoleCategory =
+  | 'licensed_wireman'
+  | 'surya_mitra_technician'
+  | 'energy_auditor'
+  | 'community_energy_guide'; // Non-technical guidance only
+
+export interface WorkerQualificationEvidence {
+  id: string;
+  certificateName: string;
+  certificateNumber: string;
+  issuingAuthority: string; // e.g. "State Licensing Board", "National Skill Development Corporation / SCGJ", "BEE"
+  issueDate: string;
+  validUntil?: string;
+  isVerified: boolean;
+  verificationSource?: string;
+}
+
+export interface DetailedWorkerProfile {
+  id: string;
+  name: string;
+  roleCategory: WorkerRoleCategory;
+  verificationStatus: WorkerVerificationStatus;
+  experienceYears: number;
+  phone: string;
+  locality: string;
+  pincode: string;
+  serviceRadiusKm: number;
+  isAvailableToday: boolean;
+  hourlyRateInr: number;
+  rating: number;
+  reviewCount: number;
+  completedJobsCount: number;
+  selfDeclaredSkills: string[]; // Explicitly separated from verified qualifications
+  verifiedQualifications: WorkerQualificationEvidence[]; // Independently verified credentials
+  isDemoProfile: boolean; // Clearly labeled for hackathon demonstration
+  disclaimer: string;
+}
+
+export type ServiceRequestType =
+  | 'technical_electrical' // Wiring, earthing, MCB tripping, load balancing (technical)
+  | 'technical_solar' // Solar PV installation, inverter fault, panel testing (technical)
+  | 'technical_energy_audit' // Professional home appliance audit, power factor (technical)
+  | 'non_technical_guidance'; // Bill understanding, PM Surya Ghar portal walkthrough, document prep (non-technical)
+
+export type ServiceRequestStatus =
+  | 'pending' // Awaiting worker acceptance
+  | 'accepted' // Worker accepted, scheduled
+  | 'in_progress' // Worker active on job
+  | 'completed' // Work finished & confirmed
+  | 'cancelled'; // Cancelled by household or rejected
+
+export interface ComplaintTicket {
+  id: string;
+  serviceRequestId: string;
+  householdName: string;
+  workerName: string;
+  issueType: 'safety_concern' | 'unqualified_work' | 'overcharging' | 'no_show' | 'other';
+  description: string;
+  status: 'open' | 'investigating' | 'resolved';
+  createdAt: string;
+}
+
+export interface ServiceRequest {
+  id: string;
+  householdName: string;
+  householdPhone: string;
+  locality: string;
+  pincode: string;
+  requestType: ServiceRequestType;
+  title: string;
+  description: string;
+  preferredDate: string;
+  preferredTimeSlot: string;
+  assignedWorkerId?: string;
+  assignedWorkerName?: string;
+  status: ServiceRequestStatus;
+  isTechnical: boolean;
+  consentGiven: boolean; // Household privacy & contact sharing consent
+  createdAt: string;
+  completedAt?: string;
+  paymentRecordedInr?: number;
+  paymentMethod?: 'cash' | 'upi' | 'waived';
+  workCompletionNotes?: string;
+  householdFeedback?: {
+    rating: number; // 1 - 5
+    reviewText: string;
+    createdAt: string;
+  };
+  complaintTicket?: ComplaintTicket;
+}
+
+export interface WorkerMatchResult {
+  worker: DetailedWorkerProfile;
+  compatibilityScore: number; // 0 - 100
+  isEligibleForTask: boolean;
+  ineligibilityReason?: string;
+  matchReasons: string[];
+}
