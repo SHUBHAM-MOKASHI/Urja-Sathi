@@ -77,3 +77,4 @@ export const ApplianceConsumptionChart: React.FC<ApplianceConsumptionChartProps>
     </div>
   );
 };
+

@@ -257,3 +257,91 @@ export interface EngineAnalysisResult {
   diagnostics: string[];
   tariffAssumptions: TariffConfiguration;
 }
+
+// ==========================================
+// SOLAR FEASIBILITY ASSISTANT TYPES
+// ==========================================
+
+export type RoofOwnershipType =
+  | 'owned_individual'
+  | 'shared_apartment'
+  | 'tenant'
+  | 'commercial_leased'
+  | 'no_roof';
+
+export type SolarDecisionType =
+  | 'save_without_solar'
+  | 'explore_solar'
+  | 'review_existing_installation';
+
+export interface SolarTariffAssumptions {
+  retailTariffPerKwh: number; // Discom retail unit rate
+  marginalTariffPerKwh: number; // Highest slab rate
+  fixedChargesMonthlyInr: number; // Inevitable grid connection fee
+  exportCreditRatePerKwh: number; // Net-metering surplus feed-in tariff (APPC)
+  discomName: string;
+}
+
+export interface SolarScenario {
+  name: 'conservative' | 'central' | 'optimistic';
+  label: string;
+  annualGenerationKwh: number;
+  annualGenerationPerKwKwh: number;
+  selfConsumptionRatio: number; // 0.0 - 1.0
+  selfConsumedKwh: number;
+  exportedKwh: number;
+  annualBillSavingsInr: number;
+  annualExportCreditsInr: number;
+  annualGrossBenefitInr: number;
+  annualMaintenanceInr: number;
+  annualNetBenefitInr: number;
+  simplePaybackYears: number | null; // null if annualNetBenefit <= 0
+  twentyFiveYearCumulativeSavingsInr: number;
+  degradationRatePercent: number; // Annual module degradation (e.g. 0.7%)
+  assumptions: string[];
+}
+
+export interface MissingInformationItem {
+  field: string;
+  importance: 'critical' | 'recommended' | 'optional';
+  message: string;
+  remedy: string;
+}
+
+export interface SolarEngineInput {
+  monthlyConsumptionKwh: number;
+  monthlyElectricityBillInr: number;
+  usableRoofAreaSqFt: number;
+  roofOwnership: RoofOwnershipType;
+  proposedSolarCapacityKw?: number;
+  installationQuotationInr?: number; // Quotation from vendor if available
+  annualMaintenanceExpenditureInr?: number;
+  applicableFinancialAssistanceInr?: number; // Verified subsidy amount
+  isSubsidyVerified?: boolean;
+  hasExistingInstallation?: boolean;
+  existingInstallationKw?: number;
+  tariffAssumptions?: Partial<SolarTariffAssumptions>;
+}
+
+export interface SolarEngineResult {
+  decision: SolarDecisionType;
+  decisionTitle: string;
+  decisionRationale: string;
+  recommendedCapacityKw: number;
+  capacityBasis: string;
+  grossInvestmentCostInr: number;
+  financialAssistanceInr: number;
+  isSubsidyGuaranteed: false; // Must strictly never guarantee approval
+  netInvestmentCostInr: number;
+  scenarios: {
+    conservative: SolarScenario;
+    central: SolarScenario;
+    optimistic: SolarScenario;
+  };
+  co2ReductionTonsPerYear: number;
+  missingInformation: MissingInformationItem[];
+  disclaimers: string[];
+  suggestedNextSteps: string[];
+  confirmedFacts: string[];
+  engineeringAssumptions: string[];
+}
