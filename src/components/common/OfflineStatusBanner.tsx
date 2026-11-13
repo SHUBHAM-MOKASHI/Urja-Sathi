@@ -51,18 +51,16 @@ export const OfflineStatusBanner: React.FC = () => {
     <div
       role="status"
       aria-live="polite"
-      className={`w-full border-b transition-all duration-300 ${
-        isOffline
+      className={`w-full border-b transition-all duration-300 ${isOffline
           ? 'bg-amber-900 text-amber-50 border-amber-800'
           : 'bg-emerald-900 text-emerald-50 border-emerald-800'
-      }`}
+        }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2.5">
           <div
-            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-              isOffline ? 'bg-amber-800 text-amber-300' : 'bg-emerald-800 text-emerald-300'
-            }`}
+            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isOffline ? 'bg-amber-800 text-amber-300' : 'bg-emerald-800 text-emerald-300'
+              }`}
           >
             {isOffline ? <WifiOff className="w-3.5 h-3.5" /> : <Wifi className="w-3.5 h-3.5" />}
           </div>

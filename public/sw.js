@@ -153,3 +153,4 @@ self.addEventListener('message', (event) => {
     });
   }
 });
+

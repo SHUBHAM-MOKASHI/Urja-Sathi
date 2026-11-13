@@ -69,3 +69,4 @@ export async function purgeAppCaches(): Promise<boolean> {
   }
   return false;
 }
+
