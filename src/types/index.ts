@@ -345,3 +345,83 @@ export interface SolarEngineResult {
   confirmedFacts: string[];
   engineeringAssumptions: string[];
 }
+
+// ==========================================
+// SOLAR INSTALLER QUOTATION COMPARISON TYPES
+// ==========================================
+
+export type MountingStructureType =
+  | 'hot_dip_galvanized'
+  | 'aluminum'
+  | 'standard_gi'
+  | 'elevated'
+  | 'unspecified';
+
+export type InverterType =
+  | 'string_inverter'
+  | 'micro_inverter'
+  | 'hybrid_inverter'
+  | 'unspecified';
+
+export interface DetailedQuotation {
+  id: string;
+  installerName: string;
+  installerContact?: string;
+  installerCity?: string;
+  isEmpanelledWithDiscom: boolean;
+  totalPriceInr: number;
+  systemCapacityKw: number;
+  panelManufacturer: string; // e.g. "Tata Power Solar", "Waaree", "Adani Solar"
+  panelModel: string; // e.g. "545W Mono PERC Bifacial"
+  panelCellType?: string;
+  panelQuantity?: number;
+  inverterBrand: string; // e.g. "Growatt", "Sungrow", "Solis"
+  inverterCapacityKw: number;
+  inverterType: InverterType;
+  inverterEfficiencyPercent?: number;
+  panelProductWarrantyYears: number; // e.g. 10 - 12 yrs
+  panelPerformanceWarrantyYears: number; // e.g. 25 - 30 yrs
+  inverterWarrantyYears: number; // e.g. 5 - 10 yrs
+  workmanshipWarrantyYears: number; // e.g. 1 - 5 yrs
+  installationChargesIncluded: boolean;
+  mountingStructureType: MountingStructureType;
+  discomNetMeteringLiaisoningIncluded: boolean;
+  freeMaintenanceYears: number;
+  annualMaintenanceCostAfterWarrantyInr?: number;
+  cleaningVisitsPerYear?: number;
+  estimatedTimelineDays: number;
+  hasLocalServiceCenter: boolean;
+  guaranteedResponseTimeHours: number; // 0 if unstated
+  hasRemoteMonitoringApp: boolean;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface QuotationScoreCategory {
+  category: string;
+  score: number; // out of maxScore
+  maxScore: number;
+  explanation: string;
+}
+
+export interface QuotationEvaluation {
+  quotationId: string;
+  installerName: string;
+  overallScore: number; // 0 - 100
+  rank: number;
+  pricePerWattPeak: number; // ₹/Wp
+  netCostAfterSubsidy: number;
+  scoreCategories: QuotationScoreCategory[];
+  strengths: string[];
+  drawbacks: string[];
+  redFlags: string[];
+  missingInformation: string[];
+  vendorQuestionsToAsk: string[];
+}
+
+export interface QuotationComparisonResult {
+  evaluations: QuotationEvaluation[];
+  topScoringQuotationId: string;
+  comparisonHighlights: string[];
+  benchmarkPricePerWattPeak: number;
+}

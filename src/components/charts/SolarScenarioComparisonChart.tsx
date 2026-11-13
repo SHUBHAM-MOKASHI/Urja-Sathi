@@ -84,3 +84,4 @@ export const SolarScenarioComparisonChart: React.FC<SolarScenarioComparisonChart
     </div>
   );
 };
+

@@ -11,6 +11,7 @@ import {
   Calendar,
   AlertCircle,
   Sparkles,
+  Scale,
 } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/common/Card';
@@ -98,7 +99,7 @@ export const DashboardPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Link to="/bills">
             <Button size="sm" variant="outline" icon={<PlusCircle className="w-4 h-4 text-emerald-600" />}>
               Scan Bill
@@ -112,6 +113,11 @@ export const DashboardPage: React.FC = () => {
           <Link to="/solar">
             <Button size="sm" variant="solar" icon={<Sun className="w-4 h-4" />}>
               Solar Evaluation
+            </Button>
+          </Link>
+          <Link to="/quotations">
+            <Button size="sm" variant="outline" icon={<Scale className="w-4 h-4 text-emerald-600" />}>
+              Compare Quotes
             </Button>
           </Link>
         </div>

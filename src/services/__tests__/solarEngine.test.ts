@@ -160,3 +160,4 @@ describe('Solar Feasibility Assistant Engine', () => {
     });
   });
 });
+

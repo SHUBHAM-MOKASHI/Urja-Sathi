@@ -11,6 +11,7 @@ import {
   Mic,
   Award,
   ChevronRight,
+  Scale,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
@@ -199,7 +200,7 @@ export const LandingPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Card 1 */}
           <Card hoverEffect className="p-6 space-y-4">
             <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center">
@@ -231,6 +232,21 @@ export const LandingPage: React.FC = () => {
           </Card>
 
           {/* Card 3 */}
+          <Card hoverEffect className="p-6 space-y-4">
+            <div className="w-12 h-12 rounded-xl bg-sky-50 text-sky-700 border border-sky-200 flex items-center justify-center">
+              <Scale className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900">Quotation Comparison Audit</h3>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Compare multiple contractor proposals side-by-side. Never choose by lowest price alone — audit warranties, net-metering liaisoning, and SLAs.
+            </p>
+            <Link to="/quotations" className="inline-flex items-center text-xs font-semibold text-emerald-700 hover:text-emerald-800 gap-1 pt-2">
+              <span>Compare installer quotes</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </Card>
+
+          {/* Card 4 */}
           <Card hoverEffect className="p-6 space-y-4">
             <div className="w-12 h-12 rounded-xl bg-forest-50 text-forest-800 border border-forest-200 flex items-center justify-center">
               <Users className="w-6 h-6" />

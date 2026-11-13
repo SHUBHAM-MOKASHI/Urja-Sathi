@@ -9,6 +9,7 @@ import {
   HardDriveDownload,
   Info,
   Lightbulb,
+  Scale,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -20,6 +21,7 @@ export const Sidebar: React.FC = () => {
     { to: '/bills', label: 'Bill Analyzer', icon: FileSpreadsheet, badge: savedBillsCount > 0 ? `${savedBillsCount}` : undefined },
     { to: '/savings', label: 'Savings Planner', icon: Lightbulb },
     { to: '/solar', label: 'Solar ROI Audit', icon: Sun },
+    { to: '/quotations', label: 'Compare Quotations', icon: Scale },
     { to: '/workforce', label: 'Community Workforce', icon: Users },
     { to: '/settings', label: 'Settings & Cache', icon: Settings },
   ];

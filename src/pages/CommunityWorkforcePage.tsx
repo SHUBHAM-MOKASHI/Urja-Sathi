@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
@@ -215,16 +216,24 @@ export const CommunityWorkforcePage: React.FC = () => {
         /* Solar Installers Quotation Comparison */
         <div className="space-y-6">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <CardTitle>Compare Rooftop Solar Quotations</CardTitle>
+                <CardTitle>Rooftop Solar Quotations & Bids</CardTitle>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Standardized 3 kW residential grid-tied system quotations with PM Surya Ghar subsidy coordination
+                  Standardized 3 kW residential grid-tied proposals with PM Surya Ghar subsidy coordination
                 </p>
               </div>
-              <Badge variant="emerald" size="sm">
-                Empanelled Vendors
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/quotations"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors"
+                >
+                  Advanced Quotation Comparison →
+                </Link>
+                <Badge variant="emerald" size="sm">
+                  Empanelled Vendors
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

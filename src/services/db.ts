@@ -1,5 +1,12 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { ElectricityBill, SolarAssessment, InstallerQuotation, EnergyWorker, UserProfile } from '../types';
+import {
+  ElectricityBill,
+  SolarAssessment,
+  InstallerQuotation,
+  EnergyWorker,
+  UserProfile,
+  DetailedQuotation,
+} from '../types';
 
 interface UrjaSaathiDB extends DBSchema {
   bills: {
@@ -118,6 +125,37 @@ export const dbService = {
   async saveQuotation(quote: InstallerQuotation): Promise<void> {
     const db = await getDB();
     await db.put('quotations', quote);
+  },
+
+  // Detailed Solar Quotations for Comparison
+  async getDetailedQuotations(): Promise<DetailedQuotation[]> {
+    try {
+      const db = await getDB();
+      const quotes = (await db.get('cachedSettings', 'detailed_quotations')) as DetailedQuotation[];
+      if (quotes && Array.isArray(quotes) && quotes.length > 0) return quotes;
+    } catch {
+      // Fallback to local storage if IndexedDB fails
+    }
+    try {
+      const local = localStorage.getItem('urja_saathi_detailed_quotations');
+      return local ? JSON.parse(local) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async saveDetailedQuotations(quotes: DetailedQuotation[]): Promise<void> {
+    try {
+      const db = await getDB();
+      await db.put('cachedSettings', quotes, 'detailed_quotations');
+    } catch {
+      // Fallback
+    }
+    try {
+      localStorage.setItem('urja_saathi_detailed_quotations', JSON.stringify(quotes));
+    } catch {
+      // Ignore local storage quota errors
+    }
   },
 
   // Workers

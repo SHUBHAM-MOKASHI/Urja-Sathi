@@ -23,10 +23,11 @@ import {
   CheckCircle,
   Compass,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 export const SolarAuditPage: React.FC = () => {
   const { showNotification } = useNotification();
+  const location = useLocation();
 
   // Inputs
   const [monthlyUnits, setMonthlyUnits] = useState<number>(340);
@@ -41,6 +42,30 @@ export const SolarAuditPage: React.FC = () => {
   const [hasExistingInstallation, setHasExistingInstallation] = useState<boolean>(false);
   const [existingCapacityKw, setExistingCapacityKw] = useState<number>(3);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  // Auto-populate from location state if passed from Quotation Comparison
+  useEffect(() => {
+    if (location.state) {
+      const state = location.state as {
+        prefilledCapacityKw?: number;
+        prefilledQuotationInr?: number;
+        installerName?: string;
+      };
+      if (state.prefilledCapacityKw) {
+        setProposedCapacity(state.prefilledCapacityKw);
+      }
+      if (state.prefilledQuotationInr) {
+        setInstallerQuote(state.prefilledQuotationInr);
+      }
+      if (state.installerName) {
+        showNotification(
+          'info',
+          'Quotation Loaded',
+          `Loaded ${state.prefilledCapacityKw} kW quotation (${formatCurrency(state.prefilledQuotationInr || 0)}) from ${state.installerName}.`
+        );
+      }
+    }
+  }, [location.state, showNotification]);
 
   // Auto-populate from most recent bill in IndexedDB
   useEffect(() => {
@@ -237,9 +262,17 @@ export const SolarAuditPage: React.FC = () => {
 
             {/* Optional Specific Vendor Quotation */}
             <div className="pt-2 border-t border-slate-100 space-y-3">
-              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-                Vendor Quotation & Financials (Optional)
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+                  Vendor Quotation & Financials (Optional)
+                </span>
+                <Link
+                  to="/quotations"
+                  className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1"
+                >
+                  Compare Installer Bids →
+                </Link>
+              </div>
 
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
