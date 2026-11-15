@@ -1,9 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, Link } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { ApplianceConsumptionChart } from '../components/charts/ApplianceConsumptionChart';
-import { runEnergySavingsEngine } from '../services/energyEngine';
+import {
+  runEnergySavingsEngine,
+  PRESET_1BHK,
+  PRESET_2BHK,
+  PRESET_3BHK,
+  applyApartmentPreset,
+  applyPreset,
+  calculateSavingsPercentage,
+  formatSavingsPercentage,
+} from '../services/energyEngine';
 import { storageService } from '../services/storageService';
 import { formatCurrency, formatKwh, formatCO2 } from '../utils/formatters';
 import { ApplianceInput, ApplianceCategory } from '../types';
@@ -24,151 +34,32 @@ import {
   Wind,
   Layers,
   HelpCircle,
+  Sun,
 } from 'lucide-react';
 
-const PRESET_2BHK: ApplianceInput[] = [
-  {
-    id: 'p_ac',
-    name: '1.5 Ton Split AC (Bedroom)',
-    category: 'air_conditioner',
-    quantity: 1,
-    wattage: 1450,
-    dailyUsageHours: 6,
-    temperatureSetpointC: 20,
-    starRating: 3,
-    ageYears: 2,
-  },
-  {
-    id: 'p_fans',
-    name: 'Induction Ceiling Fans',
-    category: 'ceiling_fan',
-    quantity: 3,
-    wattage: 75,
-    dailyUsageHours: 12,
-    ageYears: 4,
-  },
-  {
-    id: 'p_lights',
-    name: 'Living & Bedroom Lights',
-    category: 'lighting',
-    quantity: 6,
-    wattage: 28,
-    dailyUsageHours: 5,
-  },
-  {
-    id: 'p_fridge',
-    name: 'Frost-Free Refrigerator (260L)',
-    category: 'refrigerator',
-    quantity: 1,
-    wattage: 220,
-    dailyUsageHours: 24,
-    ageYears: 3,
-  },
-  {
-    id: 'p_tv',
-    name: 'Smart TV & Set-Top Box',
-    category: 'television',
-    quantity: 1,
-    wattage: 110,
-    dailyUsageHours: 4,
-    standbyHours: 20,
-  },
-];
-
-const PRESET_3BHK: ApplianceInput[] = [
-  {
-    id: 'p3_ac1',
-    name: 'Master Bedroom AC (1.5T)',
-    category: 'air_conditioner',
-    quantity: 1,
-    wattage: 1500,
-    dailyUsageHours: 7,
-    temperatureSetpointC: 21,
-    starRating: 3,
-  },
-  {
-    id: 'p3_ac2',
-    name: 'Guest Room AC (1.0T)',
-    category: 'air_conditioner',
-    quantity: 1,
-    wattage: 1100,
-    dailyUsageHours: 4,
-    temperatureSetpointC: 19,
-    starRating: 2,
-  },
-  {
-    id: 'p3_fans',
-    name: 'Living & Bed Ceiling Fans',
-    category: 'ceiling_fan',
-    quantity: 4,
-    wattage: 75,
-    dailyUsageHours: 14,
-    ageYears: 5,
-  },
-  {
-    id: 'p3_geyser',
-    name: 'Storage Water Geyser (25L)',
-    category: 'water_heater',
-    quantity: 1,
-    wattage: 2000,
-    dailyUsageHours: 1.5,
-  },
-  {
-    id: 'p3_fridge',
-    name: 'Double Door Refrigerator (340L)',
-    category: 'refrigerator',
-    quantity: 1,
-    wattage: 240,
-    dailyUsageHours: 24,
-    ageYears: 2,
-  },
-  {
-    id: 'p3_lights',
-    name: 'Recessed & Tube Lights',
-    category: 'lighting',
-    quantity: 8,
-    wattage: 22,
-    dailyUsageHours: 6,
-  },
-];
-
-const PRESET_1BHK: ApplianceInput[] = [
-  {
-    id: 'p1_fans',
-    name: 'Ceiling Fans',
-    category: 'ceiling_fan',
-    quantity: 2,
-    wattage: 75,
-    dailyUsageHours: 10,
-    ageYears: 6,
-  },
-  {
-    id: 'p1_lights',
-    name: 'CFL / LED Bulbs',
-    category: 'lighting',
-    quantity: 4,
-    wattage: 25,
-    dailyUsageHours: 4,
-  },
-  {
-    id: 'p1_tv',
-    name: 'LED TV',
-    category: 'television',
-    quantity: 1,
-    wattage: 70,
-    dailyUsageHours: 4,
-    standbyHours: 20,
-  },
-];
+export {
+  PRESET_1BHK,
+  PRESET_2BHK,
+  PRESET_3BHK,
+  applyApartmentPreset,
+  applyPreset,
+  calculateSavingsPercentage,
+  formatSavingsPercentage,
+};
 
 export const SavingsPlannerPage: React.FC = () => {
-  // Input parameters
-  const [billedUnits, setBilledUnits] = useState<number>(340);
-  const [billAmount, setBillAmount] = useState<number>(2580);
+  const location = useLocation();
+
+  // Input parameters - initialized to 0 if no bill provided (never silently injects fake consumption)
+  const [billedUnits, setBilledUnits] = useState<number>(0);
+  const [billAmount, setBillAmount] = useState<number>(0);
   const [periodDays, setPeriodDays] = useState<number>(30);
   const [members, setMembers] = useState<number>(4);
   const [userBudget, setUserBudget] = useState<number>(5000);
   const [appliances, setAppliances] = useState<ApplianceInput[]>(PRESET_2BHK);
+  const [activePreset, setActivePreset] = useState<'1bhk' | '2bhk' | '3bhk'>('2bhk');
+  const [isApplianceCustomized, setIsApplianceCustomized] = useState<boolean>(false);
+  const [hasConfirmedBill, setHasConfirmedBill] = useState<boolean>(false);
 
   // New appliance modal / inline adder state
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -179,18 +70,79 @@ export const SavingsPlannerPage: React.FC = () => {
   const [newQty, setNewQty] = useState<number>(1);
   const [newTemp, setNewTemp] = useState<number>(20);
 
-  // Auto-populate from most recent confirmed bill in IndexedDB
+  // 1. Load shared appliance inventory from IndexedDB on page initialization
   useEffect(() => {
-    storageService.getSavedBills().then((bills) => {
-      if (bills.length > 0) {
-        const latest = bills[0];
-        if (latest.unitsConsumed > 0) {
-          setBilledUnits(latest.unitsConsumed);
-          setBillAmount(latest.totalAmount);
+    let isMounted = true;
+    storageService.getApplianceInventory().then((saved) => {
+      if (isMounted) {
+        if (saved && saved.length > 0) {
+          setAppliances(saved);
+          setIsApplianceCustomized(true);
+        } else {
+          // If storage is uninitialized, seed with standard 2BHK preset for shared consistency
+          storageService.saveApplianceInventory(PRESET_2BHK);
         }
       }
     });
+
+    // Listen for inventory updates dispatched across tabs or views
+    const handleInventoryChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<ApplianceInput[]>;
+      if (customEvent.detail && Array.isArray(customEvent.detail) && isMounted) {
+        setAppliances(customEvent.detail);
+        setIsApplianceCustomized(true);
+      }
+    };
+
+    window.addEventListener('urja-appliance-inventory-changed', handleInventoryChanged);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('urja-appliance-inventory-changed', handleInventoryChanged);
+    };
   }, []);
+
+  // 2. Auto-populate from navigation state or most recent confirmed bill in IndexedDB
+  useEffect(() => {
+    // Check if passed via router navigation state (e.g. from Bill Analyzer or Dashboard)
+    const state = location.state as {
+      billedUnits?: number;
+      billAmount?: number;
+      unitsConsumed?: number;
+      totalAmount?: number;
+    } | null;
+
+    if (state && (state.billedUnits || state.unitsConsumed)) {
+      const units = state.billedUnits || state.unitsConsumed || 0;
+      const amount = state.billAmount || state.totalAmount || 0;
+      setBilledUnits(units);
+      setBillAmount(amount);
+      setHasConfirmedBill(true);
+      return;
+    }
+
+    // Otherwise load most recent confirmed bill from IndexedDB
+    const loadConfirmedBill = () => {
+      storageService.getSavedBills().then((bills) => {
+        if (bills.length > 0) {
+          const latest = bills[0];
+          if (latest.unitsConsumed > 0) {
+            setBilledUnits(latest.unitsConsumed);
+            setBillAmount(latest.totalAmount);
+            setHasConfirmedBill(true);
+          }
+        } else {
+          setHasConfirmedBill(false);
+        }
+      });
+    };
+
+    loadConfirmedBill();
+
+    window.addEventListener('urja-bills-changed', loadConfirmedBill);
+    return () => {
+      window.removeEventListener('urja-bills-changed', loadConfirmedBill);
+    };
+  }, [location.state]);
 
   // Run the deterministic engine on every input shift
   const engineResult = useMemo(() => {
@@ -204,40 +156,75 @@ export const SavingsPlannerPage: React.FC = () => {
     });
   }, [billedUnits, billAmount, periodDays, members, appliances, userBudget]);
 
+  const handleSelectPreset = (preset: '1bhk' | '2bhk' | '3bhk') => {
+    // Prompt confirmation if user has customized their appliance inventory
+    if (isApplianceCustomized) {
+      const confirmed = window.confirm(
+        'Switching apartment preset will replace your customized appliance inventory. Do you want to proceed?'
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    // Apply preset to appliances only; preserves confirmed or current bill values
+    const result = applyApartmentPreset(preset, billedUnits, billAmount, hasConfirmedBill);
+    setAppliances(result.appliances);
+    setBilledUnits(result.billedUnits);
+    setBillAmount(result.billAmount);
+    setMembers(preset === '1bhk' ? 2 : preset === '3bhk' ? 5 : 4);
+    setActivePreset(preset);
+    setIsApplianceCustomized(false);
+    // Persist confirmed preset inventory to shared storage
+    storageService.saveApplianceInventory(result.appliances);
+  };
+
   const handleAddAppliance = (e: React.FormEvent) => {
     e.preventDefault();
     const item: ApplianceInput = {
       id: `app_${Date.now()}`,
-      name: newName || newCategory.replace('_', ' ').toUpperCase(),
+      name: newName.trim() || newCategory.replace('_', ' ').toUpperCase(),
       category: newCategory,
-      wattage: Number(newWatts) || 60,
+      wattage: Math.max(1, Number(newWatts) || 60),
       dailyUsageHours: Math.min(24, Math.max(0, Number(newHours) || 1)),
       quantity: Math.max(1, Number(newQty) || 1),
       temperatureSetpointC: newCategory === 'air_conditioner' ? newTemp : undefined,
     };
-    setAppliances([...appliances, item]);
+    const updated = [...appliances, item];
+    setAppliances(updated);
+    setIsApplianceCustomized(true);
     setShowAddModal(false);
     setNewName('');
+    // Persist updated inventory to shared storage
+    storageService.saveApplianceInventory(updated);
   };
 
   const handleDeleteAppliance = (id: string) => {
-    setAppliances(appliances.filter((a) => a.id !== id));
+    const updated = appliances.filter((a) => a.id !== id);
+    setAppliances(updated);
+    setIsApplianceCustomized(true);
+    // Persist updated inventory to shared storage
+    storageService.saveApplianceInventory(updated);
   };
 
   const handleUpdateApplianceHours = (id: string, hours: number) => {
-    setAppliances(
-      appliances.map((a) =>
-        a.id === id ? { ...a, dailyUsageHours: Math.min(24, Math.max(0, hours)) } : a
-      )
+    const updated = appliances.map((a) =>
+      a.id === id ? { ...a, dailyUsageHours: Math.min(24, Math.max(0, hours)) } : a
     );
+    setAppliances(updated);
+    setIsApplianceCustomized(true);
+    // Persist updated inventory to shared storage
+    storageService.saveApplianceInventory(updated);
   };
 
   const handleUpdateApplianceSetpoint = (id: string, temp: number) => {
-    setAppliances(
-      appliances.map((a) =>
-        a.id === id ? { ...a, temperatureSetpointC: temp } : a
-      )
+    const updated = appliances.map((a) =>
+      a.id === id ? { ...a, temperatureSetpointC: temp } : a
     );
+    setAppliances(updated);
+    setIsApplianceCustomized(true);
+    // Persist updated inventory to shared storage
+    storageService.saveApplianceInventory(updated);
   };
 
   return (
@@ -262,34 +249,37 @@ export const SavingsPlannerPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           <span className="text-xs font-semibold text-slate-500">Profiles:</span>
           <button
-            onClick={() => {
-              setAppliances(PRESET_2BHK);
-              setBilledUnits(340);
-              setBillAmount(2580);
-            }}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:border-emerald-300 text-slate-700 hover:bg-emerald-50/50 shadow-xs"
+            type="button"
+            onClick={() => handleSelectPreset('2bhk')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border shadow-xs transition-colors ${
+              activePreset === '2bhk' && !isApplianceCustomized
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                : 'bg-white border-slate-200 hover:border-emerald-300 text-slate-700 hover:bg-emerald-50/50'
+            }`}
           >
-            2BHK Urban (340 kWh)
+            2BHK Urban
           </button>
           <button
-            onClick={() => {
-              setAppliances(PRESET_3BHK);
-              setBilledUnits(520);
-              setBillAmount(4450);
-            }}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:border-emerald-300 text-slate-700 hover:bg-emerald-50/50 shadow-xs"
+            type="button"
+            onClick={() => handleSelectPreset('3bhk')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border shadow-xs transition-colors ${
+              activePreset === '3bhk' && !isApplianceCustomized
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                : 'bg-white border-slate-200 hover:border-emerald-300 text-slate-700 hover:bg-emerald-50/50'
+            }`}
           >
-            3BHK Semi-Lux (520 kWh)
+            3BHK Semi-Lux
           </button>
           <button
-            onClick={() => {
-              setAppliances(PRESET_1BHK);
-              setBilledUnits(120);
-              setBillAmount(780);
-            }}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:border-emerald-300 text-slate-700 hover:bg-emerald-50/50 shadow-xs"
+            type="button"
+            onClick={() => handleSelectPreset('1bhk')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border shadow-xs transition-colors ${
+              activePreset === '1bhk' && !isApplianceCustomized
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                : 'bg-white border-slate-200 hover:border-emerald-300 text-slate-700 hover:bg-emerald-50/50'
+            }`}
           >
-            1BHK Low-Load (120 kWh)
+            1BHK Low-Load
           </button>
         </div>
       </div>
@@ -311,10 +301,17 @@ export const SavingsPlannerPage: React.FC = () => {
         <div className="lg:col-span-5 space-y-6">
           {/* Bill & Household Baseline */}
           <Card className="p-5 space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-emerald-600" />
-              Bill Baseline & Budget Parameters
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-emerald-600" />
+                Bill Baseline & Budget Parameters
+              </h3>
+              {hasConfirmedBill && (
+                <Badge variant="emerald" size="sm" icon={<CheckCircle2 className="w-3 h-3 text-emerald-600" />}>
+                  Confirmed Bill
+                </Badge>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
@@ -375,6 +372,12 @@ export const SavingsPlannerPage: React.FC = () => {
                 />
               </div>
             </div>
+
+            {!hasConfirmedBill && billedUnits === 0 && (
+              <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200/60">
+                No confirmed bill imported yet. Enter your billed units above or import a bill via the Bill Analyzer.
+              </p>
+            )}
 
             {/* Budget Filter */}
             <div className="pt-2 border-t border-slate-100">
@@ -531,7 +534,11 @@ export const SavingsPlannerPage: React.FC = () => {
                     {formatKwh(engineResult.potentialMonthlyKwhSavings)}
                   </p>
                   <p className="text-[11px] text-emerald-300 mt-0.5">
-                    ~{Math.round((engineResult.potentialMonthlyKwhSavings / (engineResult.monthlyBilledKwh || 1)) * 100)}% of current bill
+                    {formatSavingsPercentage(
+                      engineResult.status,
+                      engineResult.monthlyBilledKwh,
+                      engineResult.potentialMonthlyKwhSavings
+                    )}
                   </p>
                 </div>
 
@@ -740,6 +747,27 @@ export const SavingsPlannerPage: React.FC = () => {
               </ul>
             </div>
           )}
+
+          {/* Integration Callout: Rooftop Solar Feasibility */}
+          <div className="bg-gradient-to-r from-emerald-900 to-forest-950 text-white rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div className="space-y-1">
+              <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                Explore Solar Generation
+              </span>
+              <h4 className="font-bold text-sm sm:text-base text-white">
+                Interested in generating your own solar electricity?
+              </h4>
+              <p className="text-xs text-emerald-100/80 leading-relaxed max-w-xl">
+                Assess your terrace shadow-free area, calculate central subsidies under PM Surya Ghar, and simulate 25-year returns.
+              </p>
+            </div>
+            <Link to="/solar" className="shrink-0">
+              <Button size="sm" variant="solar" icon={<Sun className="w-4 h-4" />}>
+                Solar Feasibility Assistant →
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 

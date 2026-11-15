@@ -27,6 +27,11 @@ export function calculateCentralSubsidy(kw: number): number {
 
 /**
  * Calculates rooftop solar potential, capital expenditure, payback period, and CO2 reduction
+ * 
+ * @deprecated Legacy solar estimation logic. For full multi-tier simulation, MNRE benchmark
+ * degradation curves, state-specific DISCOM rates, and verified generation modelling, use
+ * `runSolarFeasibilityEngine()` from `src/services/solarEngine.ts` instead.
+ * Preserved for backward compatibility with legacy consumers and audit consistency.
  */
 export function calculateSolarPotential(
   rooftopAreaSqFt: number,

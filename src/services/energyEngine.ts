@@ -412,11 +412,38 @@ export function evaluateEnergyOpportunities(
 export function runEnergySavingsEngine(input: EnergyEngineInput): EngineAnalysisResult {
   const diagnostics: string[] = [];
 
-  // 1. Validate inputs
-  const billedUnits = typeof input.billedUnitsKwh === 'number' ? input.billedUnitsKwh : 0;
-  const billAmount = typeof input.billAmountInr === 'number' ? input.billAmountInr : 0;
-  const householdMembers = Math.max(1, input.householdMembers || 4);
-  const userBudget = typeof input.userBudgetInr === 'number' ? Math.max(0, input.userBudgetInr) : 0;
+  // 1. Validate inputs against NaN, Infinity, and malformed types
+  if (
+    input.billedUnitsKwh !== undefined &&
+    (!Number.isFinite(input.billedUnitsKwh) || input.billedUnitsKwh < 0)
+  ) {
+    return {
+      status: 'invalid_input',
+      statusMessage: 'Billed electricity units must be a valid, finite non-negative number.',
+      dailyAverageBilledKwh: 0,
+      monthlyBilledKwh: 0,
+      billedAmountInr: 0,
+      effectiveTariffPerKwh: 0,
+      marginalTariffPerKwh: 0,
+      billingPeriodDays: 30,
+      isBillingPeriodValid: false,
+      totalApplianceCalculatedKwh: 0,
+      unaccountedOrBaseLoadKwh: 0,
+      applianceBreakdown: [],
+      recommendations: [],
+      potentialMonthlyKwhSavings: 0,
+      potentialMonthlyInrSavings: 0,
+      totalUpfrontCostForRecommendedInr: 0,
+      co2ReductionKgPerMonth: 0,
+      diagnostics: ['Invalid input: billedUnitsKwh must be a finite non-negative number.'],
+      tariffAssumptions: DEFAULT_TARIFF_CONFIG,
+    };
+  }
+
+  const billedUnits = Number.isFinite(input.billedUnitsKwh) ? Math.max(0, input.billedUnitsKwh) : 0;
+  const billAmount = Number.isFinite(input.billAmountInr) ? Math.max(0, input.billAmountInr) : 0;
+  const householdMembers = Number.isFinite(input.householdMembers) ? Math.max(1, Math.min(50, Math.round(input.householdMembers))) : 4;
+  const userBudget = Number.isFinite(input.userBudgetInr) ? Math.max(0, input.userBudgetInr) : 0;
 
   const periodValidation = validateBillingPeriod(input.billingPeriodDays);
   if (!periodValidation.isValid) {
@@ -627,4 +654,225 @@ export function runEnergySavingsEngine(input: EnergyEngineInput): EngineAnalysis
     tariffAssumptions,
   };
 }
+
+// -------------------------------------------------------------
+// STANDARD APARTMENT APPLIANCE INVENTORY PRESETS
+// -------------------------------------------------------------
+export const PRESET_2BHK: ApplianceInput[] = [
+  {
+    id: 'p_ac',
+    name: '1.5 Ton Split AC (Bedroom)',
+    category: 'air_conditioner',
+    quantity: 1,
+    wattage: 1450,
+    dailyUsageHours: 6,
+    temperatureSetpointC: 20,
+    starRating: 3,
+    ageYears: 2,
+  },
+  {
+    id: 'p_fans',
+    name: 'Induction Ceiling Fans',
+    category: 'ceiling_fan',
+    quantity: 3,
+    wattage: 75,
+    dailyUsageHours: 12,
+    ageYears: 4,
+  },
+  {
+    id: 'p_lights',
+    name: 'Living & Bedroom Lights',
+    category: 'lighting',
+    quantity: 6,
+    wattage: 28,
+    dailyUsageHours: 5,
+  },
+  {
+    id: 'p_fridge',
+    name: 'Frost-Free Refrigerator (260L)',
+    category: 'refrigerator',
+    quantity: 1,
+    wattage: 220,
+    dailyUsageHours: 24,
+    ageYears: 3,
+  },
+  {
+    id: 'p_tv',
+    name: 'Smart TV & Set-Top Box',
+    category: 'television',
+    quantity: 1,
+    wattage: 110,
+    dailyUsageHours: 4,
+    standbyHours: 20,
+  },
+];
+
+export const PRESET_3BHK: ApplianceInput[] = [
+  {
+    id: 'p3_ac1',
+    name: 'Master Bedroom AC (1.5T)',
+    category: 'air_conditioner',
+    quantity: 1,
+    wattage: 1500,
+    dailyUsageHours: 7,
+    temperatureSetpointC: 21,
+    starRating: 3,
+  },
+  {
+    id: 'p3_ac2',
+    name: 'Guest Room AC (1.0T)',
+    category: 'air_conditioner',
+    quantity: 1,
+    wattage: 1100,
+    dailyUsageHours: 4,
+    temperatureSetpointC: 19,
+    starRating: 2,
+  },
+  {
+    id: 'p3_fans',
+    name: 'Living & Bed Ceiling Fans',
+    category: 'ceiling_fan',
+    quantity: 4,
+    wattage: 75,
+    dailyUsageHours: 14,
+    ageYears: 5,
+  },
+  {
+    id: 'p3_geyser',
+    name: 'Storage Water Geyser (25L)',
+    category: 'water_heater',
+    quantity: 1,
+    wattage: 2000,
+    dailyUsageHours: 1.5,
+  },
+  {
+    id: 'p3_fridge',
+    name: 'Double Door Refrigerator (340L)',
+    category: 'refrigerator',
+    quantity: 1,
+    wattage: 240,
+    dailyUsageHours: 24,
+    ageYears: 2,
+  },
+  {
+    id: 'p3_lights',
+    name: 'Recessed & Tube Lights',
+    category: 'lighting',
+    quantity: 8,
+    wattage: 22,
+    dailyUsageHours: 6,
+  },
+];
+
+export const PRESET_1BHK: ApplianceInput[] = [
+  {
+    id: 'p1_fans',
+    name: 'Ceiling Fans',
+    category: 'ceiling_fan',
+    quantity: 2,
+    wattage: 75,
+    dailyUsageHours: 10,
+    ageYears: 6,
+  },
+  {
+    id: 'p1_lights',
+    name: 'CFL / LED Bulbs',
+    category: 'lighting',
+    quantity: 4,
+    wattage: 25,
+    dailyUsageHours: 4,
+  },
+  {
+    id: 'p1_tv',
+    name: 'LED TV',
+    category: 'television',
+    quantity: 1,
+    wattage: 70,
+    dailyUsageHours: 4,
+    standbyHours: 20,
+  },
+];
+
+export interface PresetApplicationResult {
+  appliances: ApplianceInput[];
+  billedUnits: number;
+  billAmount: number;
+  hasConfirmedBill: boolean;
+}
+
+/**
+ * Applies an apartment preset by updating ONLY the appliance inventory.
+ * Guarantees that confirmed OCR bills or manual bill inputs are NEVER overwritten.
+ * If no bill was provided, it preserves the existing state without inventing fake bill consumption.
+ */
+export function applyApartmentPreset(
+  presetKey: '1bhk' | '2bhk' | '3bhk',
+  currentBilledUnits: number,
+  currentBillAmount: number,
+  hasConfirmedBill: boolean = false
+): PresetApplicationResult {
+  const selectedPreset =
+    presetKey === '1bhk'
+      ? PRESET_1BHK
+      : presetKey === '3bhk'
+      ? PRESET_3BHK
+      : PRESET_2BHK;
+
+  return {
+    appliances: selectedPreset.map((app) => ({ ...app })),
+    billedUnits: currentBilledUnits,
+    billAmount: currentBillAmount,
+    hasConfirmedBill,
+  };
+}
+
+export const applyPreset = applyApartmentPreset;
+
+/**
+ * Calculates deterministic savings percentage against monthly billed kWh.
+ * Returns null if the status is not success, monthlyBilledKwh is zero/negative, or inputs are invalid.
+ */
+export function calculateSavingsPercentage(
+  status: string,
+  monthlyBilledKwh: number | null | undefined,
+  potentialMonthlyKwhSavings: number | null | undefined
+): number | null {
+  if (
+    status !== 'success' ||
+    typeof monthlyBilledKwh !== 'number' ||
+    isNaN(monthlyBilledKwh) ||
+    !isFinite(monthlyBilledKwh) ||
+    monthlyBilledKwh <= 0 ||
+    typeof potentialMonthlyKwhSavings !== 'number' ||
+    isNaN(potentialMonthlyKwhSavings) ||
+    !isFinite(potentialMonthlyKwhSavings) ||
+    potentialMonthlyKwhSavings < 0
+  ) {
+    return null;
+  }
+
+  const percentage = Math.round((potentialMonthlyKwhSavings / monthlyBilledKwh) * 100);
+  if (isNaN(percentage) || !isFinite(percentage) || percentage < 0) {
+    return null;
+  }
+
+  return percentage;
+}
+
+/**
+ * Formats the savings percentage for presentation.
+ * Returns 'N/A' when inputs are missing, zero, or non-successful.
+ */
+export function formatSavingsPercentage(
+  status: string,
+  monthlyBilledKwh: number | null | undefined,
+  potentialMonthlyKwhSavings: number | null | undefined
+): string {
+  const percentage = calculateSavingsPercentage(status, monthlyBilledKwh, potentialMonthlyKwhSavings);
+  if (percentage === null) {
+    return 'N/A';
+  }
+  return `~${percentage}% of current bill`;
+}
+
 

@@ -20,66 +20,124 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/common/C
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { EnergyTrendsChart } from '../components/charts/EnergyTrendsChart';
-import { MOCK_BILLS } from '../data/mockEnergyData';
 import { formatCurrency, formatKwh } from '../utils/formatters';
 import { useApp } from '../context/AppContext';
 import { dbService } from '../services/db';
+import { storageService } from '../services/storageService';
 import { runEnergySavingsEngine } from '../services/energyEngine';
-import { ElectricityBill } from '../types';
+import { ElectricityBill, ApplianceInput } from '../types';
 
 export const DashboardPage: React.FC = () => {
   const { userProfile, isOffline } = useApp();
-  const [bills, setBills] = useState<ElectricityBill[]>(MOCK_BILLS);
+  const [bills, setBills] = useState<ElectricityBill[]>([]);
   const [activeRecIndex, setActiveRecIndex] = useState(0);
+  const [appliances, setAppliances] = useState<ApplianceInput[]>([]);
+  const [isLoadingInventory, setIsLoadingInventory] = useState<boolean>(true);
 
+  // Load stored bills
   useEffect(() => {
+    let isMounted = true;
     const loadStoredBills = async () => {
       try {
         const stored = await dbService.getAllBills();
-        if (stored.length > 0) {
-          setBills(stored);
-        } else {
-          // Seed initial mock bills to IndexedDB for first-time offline experience
-          for (const b of MOCK_BILLS) {
-            await dbService.saveBill(b);
+        if (isMounted) {
+          if (stored.length > 0) {
+            // Sort chronological oldest to newest for trends
+            const sorted = [...stored].sort(
+              (a, b) =>
+                new Date(a.billDate || a.createdAt || 0).getTime() -
+                new Date(b.billDate || b.createdAt || 0).getTime()
+            );
+            setBills(sorted);
+          } else {
+            setBills([]);
           }
         }
       } catch (err) {
-        console.warn('Could not read from IndexedDB, using fallback mock data:', err);
+        console.warn('Could not read from IndexedDB:', err);
+        if (isMounted) setBills([]);
       }
     };
+
     loadStoredBills();
+
+    // Listen for bill updates (added, edited, deleted)
+    const handleBillsChanged = () => {
+      loadStoredBills();
+    };
+
+    window.addEventListener('urja-bills-changed', handleBillsChanged);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('urja-bills-changed', handleBillsChanged);
+    };
   }, []);
 
-  const latestBill = bills[bills.length - 1] || MOCK_BILLS[MOCK_BILLS.length - 1];
-  const previousBill = bills[bills.length - 2] || latestBill;
+  // Load shared appliance inventory from IndexedDB / cachedSettings
+  useEffect(() => {
+    let isMounted = true;
+    const loadInventory = async () => {
+      try {
+        const stored = await storageService.getApplianceInventory();
+        if (isMounted) {
+          setAppliances(stored || []);
+          setIsLoadingInventory(false);
+        }
+      } catch (err) {
+        console.warn('Could not load appliance inventory on dashboard:', err);
+        if (isMounted) {
+          setAppliances([]);
+          setIsLoadingInventory(false);
+        }
+      }
+    };
+
+    loadInventory();
+
+    // Listen for real-time inventory updates from Savings Planner
+    const handleInventoryChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<ApplianceInput[]>;
+      if (customEvent.detail && Array.isArray(customEvent.detail) && isMounted) {
+        setAppliances(customEvent.detail);
+      } else {
+        loadInventory();
+      }
+    };
+
+    window.addEventListener('urja-appliance-inventory-changed', handleInventoryChanged);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('urja-appliance-inventory-changed', handleInventoryChanged);
+    };
+  }, []);
+
+  const latestBill = bills.length > 0 ? bills[bills.length - 1] : null;
+  const previousBill = bills.length > 1 ? bills[bills.length - 2] : null;
 
   const consumptionChangePercent =
-    previousBill.unitsConsumed > 0
+    latestBill && previousBill && previousBill.unitsConsumed > 0
       ? (((latestBill.unitsConsumed - previousBill.unitsConsumed) / previousBill.unitsConsumed) * 100).toFixed(1)
       : '0';
 
   const isConsumptionDown = Number(consumptionChangePercent) <= 0;
 
-  // Run the deterministic Energy Savings Intelligence Engine for the latest bill
+  // Run the deterministic Energy Savings Intelligence Engine using the shared appliance inventory
   const engineResult = useMemo(() => {
+    if (appliances.length === 0 || !latestBill || latestBill.unitsConsumed <= 0) {
+      return null;
+    }
+
     return runEnergySavingsEngine({
       billedUnitsKwh: latestBill.unitsConsumed,
       billAmountInr: latestBill.totalAmount,
       householdMembers: 4,
       userBudgetInr: 5000,
-      appliances: [
-        { id: 'd_ac', name: 'Air Conditioner', category: 'air_conditioner', quantity: 1, wattage: 1450, dailyUsageHours: 6, temperatureSetpointC: 20 },
-        { id: 'd_fan', name: 'Ceiling Fans', category: 'ceiling_fan', quantity: 3, wattage: 75, dailyUsageHours: 12 },
-        { id: 'd_light', name: 'Home Lighting', category: 'lighting', quantity: 6, wattage: 28, dailyUsageHours: 5 },
-        { id: 'd_fridge', name: 'Refrigerator', category: 'refrigerator', quantity: 1, wattage: 220, dailyUsageHours: 24, ageYears: 3 },
-        { id: 'd_tv', name: 'TV & Setup Box', category: 'television', quantity: 1, wattage: 110, dailyUsageHours: 4, standbyHours: 20 },
-      ],
+      appliances,
     });
-  }, [latestBill]);
+  }, [latestBill, appliances]);
 
   const activeRec =
-    engineResult.recommendations.length > 0
+    engineResult && engineResult.recommendations.length > 0
       ? engineResult.recommendations[activeRecIndex % engineResult.recommendations.length]
       : null;
 
@@ -149,37 +207,58 @@ export const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Last Month Consumption"
-          value={formatKwh(latestBill.unitsConsumed)}
+          value={latestBill ? formatKwh(latestBill.unitsConsumed) : '—'}
           icon={<Zap className="w-5 h-5" />}
           variant="emerald"
-          trend={{
-            value: `${Math.abs(Number(consumptionChangePercent))}%`,
-            isPositive: isConsumptionDown,
-            label: 'vs prev month',
-          }}
+          trend={
+            latestBill && previousBill
+              ? {
+                  value: `${Math.abs(Number(consumptionChangePercent))}%`,
+                  isPositive: isConsumptionDown,
+                  label: 'vs prev month',
+                }
+              : undefined
+          }
+          subtitle={latestBill ? `Period: ${latestBill.billMonth}` : 'No bills recorded yet'}
         />
 
         <StatCard
           title="Latest Bill Amount"
-          value={formatCurrency(latestBill.totalAmount)}
+          value={latestBill ? formatCurrency(latestBill.totalAmount) : '—'}
           icon={<FileText className="w-5 h-5" />}
-          subtitle={`Due date: ${latestBill.dueDate}`}
+          subtitle={latestBill ? `Due date: ${latestBill.dueDate}` : 'Scan bill to view amount'}
         />
 
         <StatCard
           title="Identified Savings"
-          value={formatCurrency(engineResult.potentialMonthlyInrSavings)}
+          value={
+            engineResult && engineResult.status === 'success'
+              ? formatCurrency(engineResult.potentialMonthlyInrSavings)
+              : '—'
+          }
           icon={<Sparkles className="w-5 h-5 text-amber-600" />}
           variant="amber"
-          subtitle={`Save up to ${formatKwh(engineResult.potentialMonthlyKwhSavings)} / mo`}
+          subtitle={
+            engineResult && engineResult.status === 'success'
+              ? `Save up to ${formatKwh(engineResult.potentialMonthlyKwhSavings)} / mo`
+              : appliances.length === 0
+              ? 'Configure appliances in planner'
+              : !latestBill
+              ? 'Scan bill to calculate savings'
+              : 'Add confirmed bill units'
+          }
         />
 
         <StatCard
           title="CO₂ Emissions Offset"
-          value={`${(engineResult.co2ReductionKgPerMonth / 1000).toFixed(2)} Tonnes`}
+          value={
+            engineResult && engineResult.status === 'success'
+              ? `${(engineResult.co2ReductionKgPerMonth / 1000).toFixed(2)} Tonnes`
+              : '—'
+          }
           icon={<ShieldCheck className="w-5 h-5" />}
           variant="emerald"
-          subtitle="Annualized community impact"
+          subtitle={latestBill ? 'Annualized community impact' : 'Awaiting bill input'}
         />
       </div>
 
@@ -191,15 +270,36 @@ export const DashboardPage: React.FC = () => {
             <div>
               <CardTitle>Electricity Consumption Trends</CardTitle>
               <p className="text-xs text-slate-500 mt-0.5">
-                Past 6 months billing units (kWh) with peak seasonal analysis
+                Past billing units (kWh) with peak seasonal analysis
               </p>
             </div>
-            <Badge variant="slate" size="sm">
-              Monthly kWh
-            </Badge>
+            {bills.some((b) => b.source === 'sample') ? (
+              <Badge variant="amber" size="sm">
+                Sample Demo Data
+              </Badge>
+            ) : bills.length > 0 ? (
+              <Badge variant="emerald" size="sm">
+                {bills.length} Verified {bills.length > 1 ? 'Bills' : 'Bill'}
+              </Badge>
+            ) : null}
           </CardHeader>
           <CardContent>
-            <EnergyTrendsChart bills={bills} />
+            {bills.length === 0 ? (
+              <div className="py-12 text-center space-y-3">
+                <FileText className="w-12 h-12 text-slate-300 mx-auto" />
+                <p className="text-sm font-semibold text-slate-700">No electricity bills saved yet</p>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Scan your electricity bill using client-side OCR to view multi-month consumption trends and uncover telescopic tariff slabs.
+                </p>
+                <Link to="/bills">
+                  <Button size="sm" variant="primary" icon={<PlusCircle className="w-4 h-4" />}>
+                    Scan Electricity Bill
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <EnergyTrendsChart bills={bills} />
+            )}
           </CardContent>
         </Card>
 
@@ -211,14 +311,34 @@ export const DashboardPage: React.FC = () => {
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                 Intelligence Engine Tip
               </span>
-              {engineResult.recommendations.length > 0 && (
+              {engineResult && engineResult.recommendations.length > 0 && (
                 <span className="text-xs text-slate-400">
                   {(activeRecIndex % engineResult.recommendations.length) + 1} of {engineResult.recommendations.length}
                 </span>
               )}
             </div>
 
-            {activeRec ? (
+            {isLoadingInventory ? (
+              <div className="p-6 bg-slate-50/70 border border-slate-200/80 rounded-2xl flex flex-col items-center justify-center text-center space-y-2">
+                <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                <p className="text-xs text-slate-500 font-medium">Loading saved appliances...</p>
+              </div>
+            ) : appliances.length === 0 ? (
+              <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs space-y-2.5">
+                <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                  <Lightbulb className="w-4 h-4 text-amber-500" />
+                  No Appliance Inventory Configured
+                </div>
+                <p className="text-slate-600 leading-relaxed">
+                  Set up your household appliances in the Savings Planner to calculate accurate energy reductions, slab arbitrage, and retrofit recommendations.
+                </p>
+                <Link to="/savings">
+                  <Button size="sm" variant="primary" className="mt-1 w-full text-xs">
+                    Configure Appliances in Planner →
+                  </Button>
+                </Link>
+              </div>
+            ) : activeRec ? (
               <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-100 space-y-2.5">
                 <div className="flex items-start justify-between gap-1">
                   <div className="flex items-center gap-1.5 text-emerald-950 font-bold text-sm">
@@ -251,11 +371,11 @@ export const DashboardPage: React.FC = () => {
               </div>
             ) : (
               <div className="p-4 bg-slate-50 rounded-2xl text-xs text-slate-500">
-                {engineResult.statusMessage}
+                {engineResult?.statusMessage || 'No recommendations generated for current inputs.'}
               </div>
             )}
 
-            {engineResult.recommendations.length > 1 && (
+            {engineResult && engineResult.recommendations.length > 1 && (
               <div className="flex justify-between items-center pt-1 text-xs">
                 <button
                   onClick={() =>

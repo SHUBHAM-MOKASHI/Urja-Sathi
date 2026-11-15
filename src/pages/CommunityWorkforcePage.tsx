@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   DetailedWorkerProfile,
   ServiceRequest,
@@ -69,10 +70,19 @@ export const CommunityWorkforcePage: React.FC = () => {
 
   // Load from IndexedDB on initial mount
   useEffect(() => {
+    let isMounted = true;
     const loadFromDB = async () => {
       try {
+        // Load workers from primary IndexedDB store
+        const storedWorkers = await dbService.getDetailedWorkers();
+        if (storedWorkers && storedWorkers.length > 0 && isMounted) {
+          setWorkers(storedWorkers);
+        } else {
+          await dbService.saveDetailedWorkers(SAMPLE_WORKERS);
+        }
+
         const stored = await dbService.getAllServiceRequests();
-        if (stored && stored.length > 0) {
+        if (stored && stored.length > 0 && isMounted) {
           setServiceRequests(stored);
         } else {
           for (const req of SAMPLE_SERVICE_REQUESTS) {
@@ -80,10 +90,13 @@ export const CommunityWorkforcePage: React.FC = () => {
           }
         }
       } catch (e) {
-        console.warn('Failed to load service requests from IndexedDB:', e);
+        console.warn('Failed to load workforce data from IndexedDB:', e);
       }
     };
     loadFromDB();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Active Worker selected when in Worker Dashboard mode
@@ -102,22 +115,21 @@ export const CommunityWorkforcePage: React.FC = () => {
   const [requestForComplaint, setRequestForComplaint] = useState<ServiceRequest | null>(null);
   const [isWorkerRegisterOpen, setIsWorkerRegisterOpen] = useState(false);
 
-  // Persist state updates to localStorage
+  // Persist workers to IndexedDB with localStorage fallback
   useEffect(() => {
-    try {
-      localStorage.setItem('urja_saathi_workers', JSON.stringify(workers));
-    } catch (e) {
-      console.warn('LocalStorage save failed for workers:', e);
-    }
+    dbService.saveDetailedWorkers(workers).catch((e) => {
+      console.warn('IndexedDB save failed for workers:', e);
+    });
   }, [workers]);
 
+  // Clean up any legacy unencrypted localStorage service request duplicates
   useEffect(() => {
     try {
-      localStorage.setItem('urja_saathi_requests', JSON.stringify(serviceRequests));
-    } catch (e) {
-      console.warn('LocalStorage save failed for requests:', e);
+      localStorage.removeItem('urja_saathi_requests');
+    } catch {
+      // Ignore
     }
-  }, [serviceRequests]);
+  }, []);
 
   const activeWorker = workers.find((w) => w.id === activeWorkerId) || workers[0];
 
@@ -139,6 +151,10 @@ export const CommunityWorkforcePage: React.FC = () => {
         `idem_req_${newReq.id}`
       );
 
+      if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('urja-service-requests-changed'));
+      }
+
       if (isOffline) {
         showNotification(
           'info',
@@ -159,6 +175,9 @@ export const CommunityWorkforcePage: React.FC = () => {
     await dbService.saveServiceRequest(updated);
     setServiceRequests(serviceRequests.map((r) => (r.id === req.id ? updated : r)));
     await syncService.enqueueOfflineAction('service_request', 'update', updated, `idem_cancel_${req.id}`);
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('urja-service-requests-changed'));
+    }
     showNotification('info', 'Request Cancelled', `Service request "${req.title}" was cancelled.`);
   };
 
@@ -223,12 +242,17 @@ export const CommunityWorkforcePage: React.FC = () => {
     await dbService.saveServiceRequest(updated);
     setServiceRequests(serviceRequests.map((r) => (r.id === req.id ? updated : r)));
     await syncService.enqueueOfflineAction('service_request', 'update', updated, `idem_complete_${req.id}`);
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('urja-service-requests-changed'));
+    }
     showNotification('success', 'Work Completed', `Service completed and payment of ₹${paymentInr} recorded.`);
   };
 
-  const handleToggleWorkerAvailability = () => {
+  const handleToggleWorkerAvailability = async () => {
     const updatedWorker = { ...activeWorker, isAvailableToday: !activeWorker.isAvailableToday };
-    setWorkers(workers.map((w) => (w.id === activeWorker.id ? updatedWorker : w)));
+    const updated = workers.map((w) => (w.id === activeWorker.id ? updatedWorker : w));
+    setWorkers(updated);
+    await dbService.saveDetailedWorkers(updated);
     showNotification(
       'info',
       'Availability Updated',
@@ -236,7 +260,7 @@ export const CommunityWorkforcePage: React.FC = () => {
     );
   };
 
-  const handleSaveWorkerProfile = (savedProfile: DetailedWorkerProfile) => {
+  const handleSaveWorkerProfile = async (savedProfile: DetailedWorkerProfile) => {
     const exists = workers.some((w) => w.id === savedProfile.id);
     let updated: DetailedWorkerProfile[];
     if (exists) {
@@ -246,6 +270,7 @@ export const CommunityWorkforcePage: React.FC = () => {
       setActiveWorkerId(savedProfile.id);
     }
     setWorkers(updated);
+    await dbService.saveDetailedWorkers(updated);
     showNotification('success', 'Profile Saved', `Worker profile for ${savedProfile.name} was updated.`);
   };
 
@@ -397,6 +422,26 @@ export const CommunityWorkforcePage: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Turnkey Installer Quotations Comparison Banner */}
+          <div className="bg-gradient-to-r from-slate-900 to-forest-950 text-white rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div className="space-y-1">
+              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
+                Turnkey Solar Vendor Proposals
+              </span>
+              <h4 className="font-bold text-sm sm:text-base text-white">
+                Looking for complete rooftop solar turnkey installation bids?
+              </h4>
+              <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
+                Compare multi-vendor price-per-watt, Tier-1 hardware warranties, net metering liaisoning, and after-sales SLAs using our 100-point algorithm.
+              </p>
+            </div>
+            <Link to="/quotations" className="shrink-0">
+              <Button size="sm" variant="primary">
+                Compare Solar Quotations →
+              </Button>
+            </Link>
+          </div>
 
           {/* Search, Filter & Action Bar */}
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">

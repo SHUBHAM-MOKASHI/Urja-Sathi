@@ -4,13 +4,35 @@
 
 @layer base {
   :root {
-    --color-forest: 20, 83, 45;
-    --color-emerald: 16, 185, 129;
+    /* URJA SAATHI Core Design Tokens */
+    --color-primary: #059669;
+    --color-primary-hover: #047857;
+    --color-forest: #064e3b;
+    --color-heading: #0f172a;
+    --color-body: #475569;
+    --color-muted: #64748b;
+    --color-app-bg: #f8fafc;
+    --color-card-bg: #ffffff;
+    --color-subtle-green: #ecfdf5;
+    --color-border: #e2e8f0;
+    --color-warning: #d97706;
+    --color-error: #dc2626;
+    --color-info: #2563eb;
+
+    /* Global Layout Metrics */
+    --sidebar-width-expanded: 250px;
+    --sidebar-width-collapsed: 72px;
+    --topbar-height: 64px;
   }
 
   body {
     @apply bg-slate-50 text-slate-800 font-sans antialiased min-h-screen selection:bg-emerald-500 selection:text-white;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Accessible outline for keyboard navigation */
+  :focus-visible {
+    @apply outline-none ring-2 ring-emerald-500 ring-offset-2 ring-offset-white;
   }
 }
 
@@ -23,7 +45,7 @@
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(226, 232, 240, 0.8);
@@ -34,6 +56,27 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(51, 65, 85, 0.6);
+}
+
+/* Shimmer Animation for Skeleton Loaders */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(241, 245, 249, 0.9) 0%,
+    rgba(226, 232, 240, 0.6) 50%,
+    rgba(241, 245, 249, 0.9) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }
 
 /* Custom scrollbar for modern feel */
@@ -55,3 +98,14 @@
   background: #94a3b8;
 }
 
+/* Accessibility: Respect Reduced Motion Preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

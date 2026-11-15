@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { HouseholdImpactRecord, ImpactVerificationStatus } from '../../types';
 import { Badge } from '../common/Badge';
+import { maskConsumerNumber } from '../../services/impactTrackerService';
 
 interface HouseholdFollowUpTableProps {
   records: HouseholdImpactRecord[];
@@ -193,7 +194,9 @@ export const HouseholdFollowUpTable: React.FC<HouseholdFollowUpTableProps> = ({ 
                       <tr className="hover:bg-slate-50/70 transition-colors">
                         {/* Household & Location */}
                         <td className="py-3.5 px-4">
-                          <div className="font-bold text-slate-900">{record.householdName}</div>
+                          <div className="font-bold text-slate-900">
+                            {record.consentGiven ? record.householdName : 'Consent Withheld (Private)'}
+                          </div>
                           <div className="text-[11px] text-slate-500">
                             {record.locality} ({record.pincode})
                           </div>
@@ -220,7 +223,7 @@ export const HouseholdFollowUpTable: React.FC<HouseholdFollowUpTableProps> = ({ 
                             <div className="space-y-0.5">
                               <div className="flex items-center gap-1 font-mono text-[11px] text-slate-700">
                                 <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-slate-200">
-                                  {record.baselineBill.billId}
+                                  {record.consentGiven ? record.baselineBill.billId : maskConsumerNumber(record.baselineBill.billId)}
                                 </span>
                               </div>
                               <div className="text-xs font-semibold text-slate-800">

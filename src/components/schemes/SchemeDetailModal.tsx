@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
@@ -37,20 +37,101 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'eligibility' | 'documents' | 'roadmap'>('overview');
 
-  // Interactive user profile state for the eligibility & document checker
-  const [userInput, setUserInput] = useState<UserSchemeReadinessInput>({
-    selectedState: initialState,
-    selectedDiscom: initialDiscom,
-    consumerType: 'domestic',
-    hasActiveConnection: true,
-    hasNoOutstandingDues: true,
-    roofOwnership: 'owned_individual',
-    hasRwaNoc: false,
-    bankAadhaarLinked: true,
-    nameMatchesAcrossDocAndBank: true,
-    checkedDocumentIds: [],
-    checkedCriteriaIds: [],
+  // Interactive user profile state for the eligibility & document checker with per-scheme persistence
+  const [userInput, setUserInput] = useState<UserSchemeReadinessInput>(() => {
+    const defaultState: UserSchemeReadinessInput = {
+      selectedState: initialState,
+      selectedDiscom: initialDiscom,
+      consumerType: 'domestic',
+      hasActiveConnection: true,
+      hasNoOutstandingDues: true,
+      roofOwnership: 'owned_individual',
+      hasRwaNoc: false,
+      bankAadhaarLinked: true,
+      nameMatchesAcrossDocAndBank: true,
+      checkedDocumentIds: [],
+      checkedCriteriaIds: [],
+    };
+    if (!scheme) return defaultState;
+    try {
+      const saved = localStorage.getItem(`urja_saathi_scheme_checklist_${scheme.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const validDocIds = new Set(scheme.requiredDocuments.map((d) => d.id));
+        const validCritIds = new Set(scheme.eligibilityCriteria.map((c) => c.id));
+        return {
+          ...defaultState,
+          ...parsed,
+          checkedDocumentIds: (parsed.checkedDocumentIds || []).filter((id: string) => validDocIds.has(id)),
+          checkedCriteriaIds: (parsed.checkedCriteriaIds || []).filter((id: string) => validCritIds.has(id)),
+        };
+      }
+    } catch {
+      // Ignore parse errors and fallback
+    }
+    return defaultState;
   });
+
+  // Restore checklist when scheme changes
+  useEffect(() => {
+    if (!scheme) return;
+    try {
+      const saved = localStorage.getItem(`urja_saathi_scheme_checklist_${scheme.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const validDocIds = new Set(scheme.requiredDocuments.map((d) => d.id));
+        const validCritIds = new Set(scheme.eligibilityCriteria.map((c) => c.id));
+        setUserInput((prev) => ({
+          ...prev,
+          selectedState: initialState,
+          selectedDiscom: initialDiscom,
+          consumerType: parsed.consumerType || 'domestic',
+          hasActiveConnection: parsed.hasActiveConnection ?? true,
+          hasNoOutstandingDues: parsed.hasNoOutstandingDues ?? true,
+          roofOwnership: parsed.roofOwnership || 'owned_individual',
+          hasRwaNoc: parsed.hasRwaNoc ?? false,
+          bankAadhaarLinked: parsed.bankAadhaarLinked ?? true,
+          nameMatchesAcrossDocAndBank: parsed.nameMatchesAcrossDocAndBank ?? true,
+          checkedDocumentIds: (parsed.checkedDocumentIds || []).filter((id: string) => validDocIds.has(id)),
+          checkedCriteriaIds: (parsed.checkedCriteriaIds || []).filter((id: string) => validCritIds.has(id)),
+        }));
+      } else {
+        setUserInput((prev) => ({
+          ...prev,
+          selectedState: initialState,
+          selectedDiscom: initialDiscom,
+          checkedDocumentIds: [],
+          checkedCriteriaIds: [],
+        }));
+      }
+    } catch {
+      // Safe fallback
+    }
+  }, [scheme?.id, initialState, initialDiscom]);
+
+  const updateAndPersist = (newInput: UserSchemeReadinessInput) => {
+    setUserInput(newInput);
+    if (scheme?.id) {
+      try {
+        localStorage.setItem(
+          `urja_saathi_scheme_checklist_${scheme.id}`,
+          JSON.stringify({
+            checkedDocumentIds: newInput.checkedDocumentIds,
+            checkedCriteriaIds: newInput.checkedCriteriaIds,
+            consumerType: newInput.consumerType,
+            roofOwnership: newInput.roofOwnership,
+            hasRwaNoc: newInput.hasRwaNoc,
+            bankAadhaarLinked: newInput.bankAadhaarLinked,
+            nameMatchesAcrossDocAndBank: newInput.nameMatchesAcrossDocAndBank,
+            hasActiveConnection: newInput.hasActiveConnection,
+            hasNoOutstandingDues: newInput.hasNoOutstandingDues,
+          })
+        );
+      } catch (err) {
+        console.warn('Could not persist scheme checklist:', err);
+      }
+    }
+  };
 
   if (!scheme) return null;
 
@@ -62,7 +143,7 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
     const updated = current.includes(docId)
       ? current.filter((id) => id !== docId)
       : [...current, docId];
-    setUserInput({ ...userInput, checkedDocumentIds: updated });
+    updateAndPersist({ ...userInput, checkedDocumentIds: updated });
   };
 
   const toggleCriterion = (critId: string) => {
@@ -70,7 +151,7 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
     const updated = current.includes(critId)
       ? current.filter((id) => id !== critId)
       : [...current, critId];
-    setUserInput({ ...userInput, checkedCriteriaIds: updated });
+    updateAndPersist({ ...userInput, checkedCriteriaIds: updated });
   };
 
   return (
@@ -245,6 +326,13 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
         {/* TAB 2: ELIGIBILITY CHECKER */}
         {activeTab === 'eligibility' && (
           <div className="space-y-6">
+            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                <strong>Document Preparation Notice:</strong> Checklist completion is for personal document preparation and eligibility self-check only. It does not constitute official government scheme approval or formal application filing.
+              </span>
+            </div>
+
             {/* Live Verdict Banner */}
             <div
               className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
@@ -325,7 +413,7 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
                   <select
                     value={userInput.consumerType}
                     onChange={(e) =>
-                      setUserInput({ ...userInput, consumerType: e.target.value as any })
+                      updateAndPersist({ ...userInput, consumerType: e.target.value as any })
                     }
                     className="w-full text-xs rounded-lg border border-slate-300 p-2 bg-white"
                   >
@@ -343,7 +431,7 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
                   <select
                     value={userInput.roofOwnership}
                     onChange={(e) =>
-                      setUserInput({ ...userInput, roofOwnership: e.target.value as any })
+                      updateAndPersist({ ...userInput, roofOwnership: e.target.value as any })
                     }
                     className="w-full text-xs rounded-lg border border-slate-300 p-2 bg-white"
                   >
@@ -359,7 +447,7 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
                   <input
                     type="checkbox"
                     checked={Boolean(userInput.hasRwaNoc)}
-                    onChange={(e) => setUserInput({ ...userInput, hasRwaNoc: e.target.checked })}
+                    onChange={(e) => updateAndPersist({ ...userInput, hasRwaNoc: e.target.checked })}
                     className="h-4 w-4 rounded text-emerald-600"
                   />
                   <span>I possess a formal written Society / RWA NOC resolution</span>
@@ -371,7 +459,7 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
                   <input
                     type="checkbox"
                     checked={Boolean(userInput.bankAadhaarLinked)}
-                    onChange={(e) => setUserInput({ ...userInput, bankAadhaarLinked: e.target.checked })}
+                    onChange={(e) => updateAndPersist({ ...userInput, bankAadhaarLinked: e.target.checked })}
                     className="h-4 w-4 rounded text-emerald-600"
                   />
                   <span>Bank account is mapped on NPCI Aadhaar DBT mapper</span>
@@ -382,7 +470,7 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
                     type="checkbox"
                     checked={Boolean(userInput.nameMatchesAcrossDocAndBank)}
                     onChange={(e) =>
-                      setUserInput({ ...userInput, nameMatchesAcrossDocAndBank: e.target.checked })
+                      updateAndPersist({ ...userInput, nameMatchesAcrossDocAndBank: e.target.checked })
                     }
                     className="h-4 w-4 rounded text-emerald-600"
                   />
@@ -444,6 +532,13 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
         {/* TAB 3: REQUIRED DOCUMENTS CHECKLIST */}
         {activeTab === 'documents' && (
           <div className="space-y-6">
+            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                <strong>Document Preparation Notice:</strong> Checklist completion is for personal document preparation and eligibility self-check only. It does not constitute official government scheme approval or formal application filing.
+              </span>
+            </div>
+
             {/* Document Readiness Bar */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
               <div className="flex items-center justify-between text-xs">
@@ -581,6 +676,7 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
         <div className="border-t border-slate-200 pt-4 text-[11px] text-slate-500 space-y-1 leading-relaxed">
           <p>
             <strong>Official Policy Disclaimer:</strong> URJA SAATHI is an independent source-backed guidance assistant.
+            Checklist completion is solely for household document preparation and eligibility self-check and does not constitute official scheme approval.
             We do not collect government application fees, submit applications automatically, or guarantee approval.
             Subsidies are sanctioned exclusively through your state DISCOM and central DBT treasury disbursement.
           </p>

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
+import { Loader } from '../components/common/Loader';
 import { SlabBreakdownChart } from '../components/charts/SlabBreakdownChart';
 import { calculateSlabBreakdown } from '../utils/energyCalculations';
 import { formatCurrency, formatKwh, formatDate } from '../utils/formatters';
@@ -10,7 +12,7 @@ import { runOcrRecognition } from '../services/ocrService';
 import { parseElectricityBill } from '../services/billParser';
 import { useNotification } from '../context/NotificationContext';
 import { useApp } from '../context/AppContext';
-import { ElectricityBill, ParsedBillData, OcrProgress } from '../types';
+import { ElectricityBill, ParsedBillData, OcrProgress, UserProfile } from '../types';
 import { BillUploadZone } from '../components/bill-analyzer/BillUploadZone';
 import { BillImagePreview } from '../components/bill-analyzer/BillImagePreview';
 import { BillOcrProgress } from '../components/bill-analyzer/BillOcrProgress';
@@ -33,7 +35,7 @@ type OcrStep = 'upload' | 'preview' | 'processing' | 'review' | 'success';
 
 export const BillAnalyzerPage: React.FC = () => {
   const { showNotification } = useNotification();
-  const { refreshCounters } = useApp();
+  const { refreshCounters, updateUserProfile } = useApp();
 
   const [activeTab, setActiveTab] = useState<AnalyzerTab>('ocr_scan');
   const [ocrStep, setOcrStep] = useState<OcrStep>('upload');
@@ -57,13 +59,17 @@ export const BillAnalyzerPage: React.FC = () => {
 
   // Stored Bills History
   const [savedBills, setSavedBills] = useState<ElectricityBill[]>([]);
+  const [isLoadingBills, setIsLoadingBills] = useState<boolean>(true);
 
   const loadSavedBills = async () => {
+    setIsLoadingBills(true);
     try {
       const list = await storageService.getSavedBills();
       setSavedBills(list);
     } catch {
       // Ignored
+    } finally {
+      setIsLoadingBills(false);
     }
   };
 
@@ -101,10 +107,20 @@ export const BillAnalyzerPage: React.FC = () => {
   };
 
   // 3. User Confirmed & Edited Fields in Review Form -> Save to IndexedDB
-  const handleSaveConfirmedBill = async (bill: ElectricityBill) => {
+  const handleSaveConfirmedBill = async (bill: ElectricityBill, syncToProfile?: boolean) => {
     try {
       const saveRes = await storageService.saveConfirmedBill(bill, true);
       if (saveRes.success) {
+        if (syncToProfile) {
+          const profileUpdate: Partial<UserProfile> = {};
+          if (bill.consumerName && bill.consumerName.trim()) {
+            profileUpdate.name = bill.consumerName.trim();
+          }
+          if (Object.keys(profileUpdate).length > 0) {
+            await updateUserProfile(profileUpdate);
+          }
+        }
+
         setSavedBillResult(bill);
         setOcrStep('success');
         await refreshCounters();
@@ -112,7 +128,7 @@ export const BillAnalyzerPage: React.FC = () => {
         showNotification(
           'success',
           'Bill Saved Successfully',
-          `Bill for ${bill.billMonth} (${bill.unitsConsumed} kWh) stored in offline IndexedDB.`
+          `Bill for ${bill.billMonth} (${bill.unitsConsumed} kWh) stored in offline IndexedDB.${syncToProfile ? ' Household profile updated.' : ''}`
         );
       }
     } catch (err) {
@@ -303,13 +319,18 @@ export const BillAnalyzerPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-center gap-3 pt-2">
+                <div className="flex flex-wrap justify-center gap-3 pt-2">
                   <Button variant="ghost" size="sm" onClick={handleResetOcr}>
                     Scan Another Bill
                   </Button>
-                  <Button variant="primary" size="sm" onClick={() => setActiveTab('history')}>
-                    View Stored Bills Archive
+                  <Button variant="outline" size="sm" onClick={() => setActiveTab('history')}>
+                    View Stored Bills ({savedBills.length})
                   </Button>
+                  <Link to="/savings">
+                    <Button variant="primary" size="sm">
+                      Optimize in Savings Planner →
+                    </Button>
+                  </Link>
                 </div>
               </div>
 
@@ -483,7 +504,11 @@ export const BillAnalyzerPage: React.FC = () => {
               </Badge>
             </CardHeader>
             <CardContent>
-              {savedBills.length === 0 ? (
+              {isLoadingBills ? (
+                <div className="py-12">
+                  <Loader size="md" label="Loading stored bills archive..." />
+                </div>
+              ) : savedBills.length === 0 ? (
                 <div className="text-center py-12 space-y-3">
                   <FileText className="w-12 h-12 text-slate-300 mx-auto" />
                   <p className="text-sm font-semibold text-slate-700">No electricity bills saved yet.</p>

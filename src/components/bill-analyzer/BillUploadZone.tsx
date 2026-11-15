@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, FileImage, Sparkles, AlertCircle, Info, ShieldCheck } from 'lucide-react';
-import { validateBillFile } from '../../services/billValidation';
+import { validateBillFile, validateBillFileSignature } from '../../services/billValidation';
 import { SAMPLE_BILLS, createSampleBillFile, SampleBillOption } from '../../data/sampleBillImages';
 
 interface BillUploadZoneProps {
@@ -13,17 +13,29 @@ export const BillUploadZone: React.FC<BillUploadZoneProps> = ({
   isLoadingSample = false,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isValidatingSignature, setIsValidatingSignature] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     setValidationError(null);
     const validation = validateBillFile(file);
     if (!validation.isValid) {
       setValidationError(validation.error || 'Invalid file format or size.');
       return;
     }
-    onFileSelected(file);
+
+    setIsValidatingSignature(true);
+    try {
+      const sigValidation = await validateBillFileSignature(file);
+      if (!sigValidation.isValid) {
+        setValidationError(sigValidation.error || 'Invalid file binary header signature.');
+        return;
+      }
+      onFileSelected(file);
+    } finally {
+      setIsValidatingSignature(false);
+    }
   };
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -84,10 +96,16 @@ export const BillUploadZone: React.FC<BillUploadZoneProps> = ({
 
           <div>
             <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-              Upload Electricity Bill
+              {isValidatingSignature ? 'Verifying File Security...' : 'Upload Electricity Bill'}
             </h3>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Drag & drop your bill photo here, or <span className="text-emerald-700 font-semibold underline">browse files</span>
+              {isValidatingSignature ? (
+                'Checking binary magic bytes for security integrity...'
+              ) : (
+                <>
+                  Drag & drop your bill photo here, or <span className="text-emerald-700 font-semibold underline">browse files</span>
+                </>
+              )}
             </p>
           </div>
 

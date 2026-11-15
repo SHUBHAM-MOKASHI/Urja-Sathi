@@ -58,10 +58,25 @@ self.addEventListener('activate', (event) => {
 // =========================================================================
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  const url = new URL(request.url);
+  let url;
+  try {
+    url = new URL(request.url);
+  } catch {
+    return;
+  }
 
-  // Only handle GET requests; never cache POST/PUT/DELETE
+  // Security rule: Only handle GET requests; never cache POST/PUT/DELETE
   if (request.method !== 'GET') {
+    return;
+  }
+
+  // Security rule: Never cache non-HTTP/HTTPS schemes (e.g. chrome-extension:)
+  if (!url.protocol.startsWith('http')) {
+    return;
+  }
+
+  // Security rule: Never cache dynamic API or authentication requests
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')) {
     return;
   }
 
@@ -114,6 +129,15 @@ self.addEventListener('fetch', (event) => {
   }
 
   // C. Static Images, Manifest, Icons, Fonts (StaleWhileRevalidate)
+  // Security rule: Only cache same-origin assets or trusted static fonts
+  const isTrustedOrigin = url.origin === self.location.origin ||
+    url.hostname === 'fonts.googleapis.com' ||
+    url.hostname === 'fonts.gstatic.com';
+
+  if (!isTrustedOrigin) {
+    return;
+  }
+
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       const fetchPromise = fetch(request)

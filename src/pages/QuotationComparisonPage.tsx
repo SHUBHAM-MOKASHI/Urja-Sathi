@@ -15,6 +15,7 @@ import { QuotationFormModal } from '../components/quotation-comparison/Quotation
 import { QuotationReportModal } from '../components/quotation-comparison/QuotationReportModal';
 import { Button } from '../components/common/Button';
 import { StatCard } from '../components/common/StatCard';
+import { Loader } from '../components/common/Loader';
 import {
   Plus,
   FileText,
@@ -245,7 +246,9 @@ export const QuotationComparisonPage: React.FC = () => {
 
       {/* Main Content Area */}
       {isLoading ? (
-        <div className="text-center py-12 text-slate-400">Loading quotations...</div>
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center max-w-xl mx-auto shadow-subtle">
+          <Loader size="lg" label="Loading installer quotations from local database..." />
+        </div>
       ) : quotations.length === 0 ? (
         /* Empty State */
         <div className="bg-white rounded-3xl border border-slate-200 p-8 sm:p-12 text-center max-w-xl mx-auto space-y-4 shadow-sm">

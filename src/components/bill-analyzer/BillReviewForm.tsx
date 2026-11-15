@@ -22,7 +22,7 @@ import { dbService } from '../../services/db';
 interface BillReviewFormProps {
   parsedData: ParsedBillData;
   billImagePreviewUrl?: string;
-  onConfirmSave: (bill: ElectricityBill) => void;
+  onConfirmSave: (bill: ElectricityBill, syncToProfile?: boolean) => void;
   onCancel: () => void;
 }
 
@@ -59,6 +59,7 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
   const [existingBills, setExistingBills] = useState<ElectricityBill[]>([]);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [allowDuplicateSave, setAllowDuplicateSave] = useState<boolean>(false);
+  const [syncToProfile, setSyncToProfile] = useState<boolean>(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [showRawOcr, setShowRawOcr] = useState<boolean>(false);
 
@@ -162,7 +163,7 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    onConfirmSave(finalBill);
+    onConfirmSave(finalBill, syncToProfile);
   };
 
   return (
@@ -488,6 +489,23 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
               </div>
             </div>
           </Card>
+
+          {/* Optional Profile Sync Option (TASK 6) */}
+          <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-4 flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="syncProfileCheckbox"
+              checked={syncToProfile}
+              onChange={(e) => setSyncToProfile(e.target.checked)}
+              className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4 mt-0.5 cursor-pointer"
+            />
+            <label htmlFor="syncProfileCheckbox" className="text-xs text-emerald-950 cursor-pointer space-y-0.5">
+              <span className="font-semibold block">Update my household profile with this consumer name</span>
+              <span className="text-[11px] text-emerald-700 block">
+                Optionally updates your active profile name ({consumerName || 'from bill'}) without overwriting your contact, pincode, or existing preferences.
+              </span>
+            </label>
+          </div>
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">

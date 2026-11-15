@@ -1,5 +1,5 @@
 import { dbService } from './db';
-import { ElectricityBill } from '../types';
+import { ElectricityBill, ApplianceInput } from '../types';
 import { checkDuplicateBill } from './billValidation';
 
 export const storageService = {
@@ -41,6 +41,14 @@ export const storageService = {
 
     await dbService.saveBill(billToSave);
 
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(
+        new CustomEvent('urja-bills-changed', {
+          detail: { action: 'save', billId: billToSave.id },
+        })
+      );
+    }
+
     return {
       success: true,
       billId: billToSave.id,
@@ -62,6 +70,28 @@ export const storageService = {
    */
   async deleteBill(billId: string): Promise<void> {
     await dbService.deleteBill(billId);
+
+    // Clean up any pending offline sync queue items referencing this bill
+    try {
+      const queue = await dbService.getAllSyncItems();
+      for (const item of queue) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rawEntityId = (item.payload as any)?.id || (item.payload as any)?.billId;
+        if (rawEntityId === billId || item.idempotencyKey.includes(billId)) {
+          await dbService.deleteSyncItem(item.id);
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(
+        new CustomEvent('urja-bills-changed', {
+          detail: { action: 'delete', billId },
+        })
+      );
+    }
   },
 
   /**
@@ -96,6 +126,20 @@ export const storageService = {
       highestKwh: Math.max(...unitsList),
       lowestKwh: Math.min(...unitsList),
     };
+  },
+
+  /**
+   * Get shared appliance inventory from IndexedDB / cachedSettings
+   */
+  async getApplianceInventory(): Promise<ApplianceInput[]> {
+    return dbService.getApplianceInventory();
+  },
+
+  /**
+   * Save shared appliance inventory to IndexedDB / cachedSettings
+   */
+  async saveApplianceInventory(inventory: ApplianceInput[]): Promise<void> {
+    return dbService.saveApplianceInventory(inventory);
   },
 };
 

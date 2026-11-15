@@ -1,15 +1,18 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
+import { Modal } from '../components/common/Modal';
 import { SolarScenarioComparisonChart } from '../components/charts/SolarScenarioComparisonChart';
 import { SolarProductionChart } from '../components/charts/SolarProductionChart';
 import { runSolarFeasibilityEngine } from '../services/solarEngine';
 import { storageService } from '../services/storageService';
 import { dbService } from '../services/db';
-import { formatCurrency, formatKwh } from '../utils/formatters';
+import { syncService } from '../services/syncService';
+import { formatCurrency, formatKwh, formatDate } from '../utils/formatters';
 import { useNotification } from '../context/NotificationContext';
-import { RoofOwnershipType } from '../types';
+import { useApp } from '../context/AppContext';
+import { RoofOwnershipType, SolarAssessment } from '../types';
 import {
   Sun,
   ShieldAlert,
@@ -22,11 +25,15 @@ import {
   Home,
   CheckCircle,
   Compass,
+  History,
+  Trash2,
+  FileText,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 export const SolarAuditPage: React.FC = () => {
   const { showNotification } = useNotification();
+  const { userProfile } = useApp();
   const location = useLocation();
 
   // Inputs
@@ -34,6 +41,10 @@ export const SolarAuditPage: React.FC = () => {
   const [monthlyBill, setMonthlyBill] = useState<number>(2580);
   const [usableArea, setUsableArea] = useState<number>(350);
   const [roofOwnership, setRoofOwnership] = useState<RoofOwnershipType>('owned_individual');
+  const [hasConfirmedBill, setHasConfirmedBill] = useState<boolean>(false);
+  const [billPeriod, setBillPeriod] = useState<string>('');
+  const [savedAssessments, setSavedAssessments] = useState<SolarAssessment[]>([]);
+  const [isSavedModalOpen, setIsSavedModalOpen] = useState<boolean>(false);
   const [proposedCapacity, setProposedCapacity] = useState<number | ''>('');
   const [installerQuote, setInstallerQuote] = useState<number | ''>('');
   const [annualMaintenance, setAnnualMaintenance] = useState<number | ''>('');
@@ -67,18 +78,61 @@ export const SolarAuditPage: React.FC = () => {
     }
   }, [location.state, showNotification]);
 
-  // Auto-populate from most recent bill in IndexedDB
-  useEffect(() => {
-    storageService.getSavedBills().then((bills) => {
-      if (bills.length > 0) {
-        const latest = bills[0];
-        if (latest.unitsConsumed > 0) {
-          setMonthlyUnits(latest.unitsConsumed);
-          setMonthlyBill(latest.totalAmount);
-        }
-      }
-    });
+  // Load stored assessments from IndexedDB
+  const loadSavedAssessments = useCallback(async () => {
+    try {
+      const records = await dbService.getAllAssessments();
+      const sorted = [...records].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setSavedAssessments(sorted);
+    } catch (err) {
+      console.warn('Could not load saved assessments:', err);
+    }
   }, []);
+
+  useEffect(() => {
+    loadSavedAssessments();
+  }, [loadSavedAssessments]);
+
+  // If user profile explicitly disallows rooftop access, default to no_roof
+  useEffect(() => {
+    if (userProfile && userProfile.hasRooftopAccess === false) {
+      setRoofOwnership('no_roof');
+      setUsableArea(0);
+    }
+  }, [userProfile]);
+
+  // Auto-populate from most recent confirmed bill in IndexedDB
+  useEffect(() => {
+    const fetchLatestBill = () => {
+      storageService.getSavedBills().then((bills) => {
+        if (bills.length > 0) {
+          // Prefer non-sample bills if available
+          const nonSample = bills.filter((b) => b.source !== 'sample');
+          const latest = nonSample.length > 0 ? nonSample[0] : bills[0];
+          if (latest.unitsConsumed > 0) {
+            setMonthlyUnits(latest.unitsConsumed);
+            setMonthlyBill(latest.totalAmount);
+            setHasConfirmedBill(latest.source !== 'sample');
+            setBillPeriod(latest.billMonth);
+          }
+        } else {
+          setHasConfirmedBill(false);
+          if (userProfile?.avgMonthlyBill && userProfile.avgMonthlyBill > 0) {
+            setMonthlyBill(userProfile.avgMonthlyBill);
+          }
+        }
+      });
+    };
+
+    fetchLatestBill();
+
+    window.addEventListener('urja-bills-changed', fetchLatestBill);
+    return () => {
+      window.removeEventListener('urja-bills-changed', fetchLatestBill);
+    };
+  }, [userProfile]);
 
   // Run the Solar Feasibility Decision Engine
   const solarResult = useMemo(() => {
@@ -112,8 +166,9 @@ export const SolarAuditPage: React.FC = () => {
   const handleSaveAssessment = async () => {
     setIsSaving(true);
     try {
-      await dbService.saveAssessment({
-        id: `solar_${Date.now()}`,
+      const assessmentId = `solar_${Date.now()}`;
+      const assessment = {
+        id: assessmentId,
         rooftopAreaSqFt: usableArea,
         recommendedSystemSizeKw: solarResult.recommendedCapacityKw,
         totalEstimatedCost: solarResult.grossInvestmentCostInr,
@@ -125,16 +180,40 @@ export const SolarAuditPage: React.FC = () => {
         paybackPeriodYears: solarResult.scenarios.central.simplePaybackYears || 0,
         twentyFiveYearSavingsInr: solarResult.scenarios.central.twentyFiveYearCumulativeSavingsInr,
         createdAt: new Date().toISOString(),
-      });
+      };
+
+      await dbService.saveAssessment(assessment);
+
+      // Enqueue offline action for background sync idempotently
+      const idempotencyKey = `idem_solar_assessment_${assessmentId}_create`;
+      await syncService.enqueueOfflineAction(
+        'solar_assessment',
+        'create',
+        assessment,
+        idempotencyKey
+      );
+
+      await loadSavedAssessments();
+
       showNotification(
         'success',
         'Solar Feasibility Saved',
-        `Decision "${solarResult.decisionTitle}" recorded in offline database.`
+        `Decision "${solarResult.decisionTitle}" saved to local offline database and queued for synchronization.`
       );
     } catch {
       showNotification('error', 'Save Failed', 'Could not save assessment locally.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteSavedAssessment = async (id: string) => {
+    try {
+      await dbService.deleteAssessment(id);
+      await loadSavedAssessments();
+      showNotification('info', 'Assessment Deleted', 'Feasibility record removed from local storage.');
+    } catch {
+      showNotification('error', 'Delete Failed', 'Could not delete assessment record.');
     }
   };
 
@@ -157,12 +236,22 @@ export const SolarAuditPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {savedAssessments.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsSavedModalOpen(true)}
+              icon={<History className="w-4 h-4 text-emerald-600" />}
+            >
+              Saved Reports ({savedAssessments.length})
+            </Button>
+          )}
           <Button
             size="sm"
-            variant="outline"
+            variant="primary"
             onClick={handleSaveAssessment}
             isLoading={isSaving}
-            icon={<CheckCircle className="w-4 h-4 text-emerald-600" />}
+            icon={<CheckCircle className="w-4 h-4" />}
           >
             Save Feasibility Report
           </Button>
@@ -197,7 +286,15 @@ export const SolarAuditPage: React.FC = () => {
               </label>
               <select
                 value={roofOwnership}
-                onChange={(e) => setRoofOwnership(e.target.value as RoofOwnershipType)}
+                onChange={(e) => {
+                  const val = e.target.value as RoofOwnershipType;
+                  setRoofOwnership(val);
+                  if (val === 'no_roof') {
+                    setUsableArea(0);
+                  } else if (usableArea === 0) {
+                    setUsableArea(350);
+                  }
+                }}
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="owned_individual">Individually Owned House / Terrace</option>
@@ -220,7 +317,8 @@ export const SolarAuditPage: React.FC = () => {
                 step="25"
                 value={usableArea}
                 onChange={(e) => setUsableArea(Number(e.target.value))}
-                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                disabled={roofOwnership === 'no_roof'}
+                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600 disabled:opacity-50"
               />
               <div className="flex justify-between text-[11px] text-slate-400 mt-0.5">
                 <span>0 sq ft</span>
@@ -230,33 +328,47 @@ export const SolarAuditPage: React.FC = () => {
             </div>
 
             {/* Consumption & Bill */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Monthly Consumption (kWh)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="10000"
-                  value={monthlyUnits}
-                  onChange={(e) => setMonthlyUnits(Math.max(0, Number(e.target.value)))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-700">Billing & Energy Input</span>
+                {hasConfirmedBill ? (
+                  <Badge variant="emerald" size="sm" icon={<CheckCircle2 className="w-3 h-3 text-emerald-600" />}>
+                    Confirmed ({billPeriod})
+                  </Badge>
+                ) : (
+                  <span className="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    Baseline Estimate • <Link to="/bills" className="underline font-bold hover:text-amber-950">Scan Bill</Link>
+                  </span>
+                )}
               </div>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Monthly Units (kWh)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="10000"
+                    value={monthlyUnits}
+                    onChange={(e) => setMonthlyUnits(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Monthly Bill (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="200000"
-                  value={monthlyBill}
-                  onChange={(e) => setMonthlyBill(Math.max(0, Number(e.target.value)))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Monthly Bill (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="200000"
+                    value={monthlyBill}
+                    onChange={(e) => setMonthlyBill(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
               </div>
             </div>
 
@@ -653,10 +765,15 @@ export const SolarAuditPage: React.FC = () => {
             </div>
 
             {solarResult.decision === 'explore_solar' && (
-              <div className="pt-2 flex justify-end">
-                <Link to="/workforce">
+              <div className="pt-2 flex flex-wrap justify-end gap-2">
+                <Link to="/quotations">
                   <Button size="sm" variant="primary">
-                    Compare Verified Local Installers →
+                    Compare Turnkey Vendor Quotes →
+                  </Button>
+                </Link>
+                <Link to="/workforce">
+                  <Button size="sm" variant="outline">
+                    Book Certified Solar Wireman
                   </Button>
                 </Link>
               </div>
@@ -713,6 +830,87 @@ export const SolarAuditPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Saved Assessments Modal */}
+      <Modal
+        isOpen={isSavedModalOpen}
+        onClose={() => setIsSavedModalOpen(false)}
+        title="Saved Solar Feasibility Assessments"
+        description="Feasibility calculations and decision models saved locally in IndexedDB"
+        maxWidth="3xl"
+      >
+        <div className="space-y-4 text-xs">
+          {savedAssessments.length === 0 ? (
+            <div className="py-8 text-center text-slate-500 space-y-2">
+              <FileText className="w-8 h-8 text-slate-300 mx-auto" />
+              <p className="font-semibold">No saved solar assessments found.</p>
+              <p className="text-slate-400">Click "Save Feasibility Report" on any solar evaluation to store it offline.</p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+              {savedAssessments.map((a) => (
+                <div
+                  key={a.id}
+                  className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5 transition-all hover:bg-slate-50/80"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900 text-sm">
+                        {a.recommendedSystemSizeKw} kW Recommended System
+                      </span>
+                      <Badge variant="emerald" size="sm">
+                        {formatCurrency(a.netCostAfterSubsidy)} Net
+                      </Badge>
+                    </div>
+                    <span className="text-[11px] text-slate-400">
+                      {formatDate(a.createdAt)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-600 pt-1">
+                    <div>
+                      <span className="text-slate-400 block">Gross Cost:</span>
+                      <span className="font-semibold text-slate-800">{formatCurrency(a.totalEstimatedCost)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Central Subsidy:</span>
+                      <span className="font-semibold text-emerald-700">{formatCurrency(a.centralSubsidyAmount)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Annual Savings:</span>
+                      <span className="font-semibold text-emerald-800">{formatCurrency(a.annualSavingsInr)}/yr</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Payback:</span>
+                      <span className="font-semibold text-amber-700">{a.paybackPeriodYears} Years</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-200/70 text-[11px]">
+                    <span className="text-slate-400 font-mono text-[10px]">
+                      ID: {a.id}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSavedAssessment(a.id)}
+                      className="text-rose-600 hover:text-rose-800 font-semibold flex items-center gap-1 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Record</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2 border-t border-slate-100">
+            <Button variant="ghost" size="sm" onClick={() => setIsSavedModalOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

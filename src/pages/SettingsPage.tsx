@@ -89,6 +89,9 @@ export const SettingsPage: React.FC = () => {
         await dbService.saveBill(bill);
       }
       await refreshCounters();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('urja-bills-changed', { detail: { action: 'reset_demo' } }));
+      }
       showNotification('success', 'Demo Bills Restored', 'Mock billing data has been repopulated into IndexedDB.');
     } catch {
       showNotification('error', 'Reset Failed', 'Could not reset mock data.');
@@ -125,6 +128,9 @@ export const SettingsPage: React.FC = () => {
       if (deletionTarget === 'bills') {
         await dbService.clearAllData({ bills: true });
         await refreshCounters();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('urja-bills-changed', { detail: { action: 'delete_all' } }));
+        }
         showNotification('info', 'Bills Deleted', 'All saved bill records have been removed from IndexedDB.');
       } else if (deletionTarget === 'queue') {
         await dbService.clearAllData({ queue: true });
@@ -137,6 +143,10 @@ export const SettingsPage: React.FC = () => {
         await refreshCounters();
         await refreshOfflineQueue();
         await loadQueue();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('urja-bills-changed', { detail: { action: 'full_reset' } }));
+          window.dispatchEvent(new CustomEvent('urja-service-requests-changed', { detail: { action: 'full_reset' } }));
+        }
         showNotification(
           'success',
           'Full Factory Reset Complete',
@@ -415,7 +425,7 @@ export const SettingsPage: React.FC = () => {
                 User-Controlled Data Deletion
               </CardTitle>
               <p className="text-xs text-rose-800/80 mt-0.5">
-                GDPR & DPDP Act compliant local data erasure tools. You have full sovereign control over all data stored on this device.
+                Local-first data erasure controls aligned with privacy principles. You have sovereign control over all records stored on this device.
               </p>
             </CardHeader>
 
@@ -475,13 +485,13 @@ export const SettingsPage: React.FC = () => {
           <Card variant="forest" className="p-5">
             <h4 className="font-bold text-white text-sm mb-1">Local-First Privacy Architecture</h4>
             <p className="text-xs text-slate-300 leading-relaxed mb-3">
-              URJA SAATHI ensures 100% privacy: electricity bill images and consumer numbers are processed locally with client-side OCR and mathematical calculation engines. No data leaves the device without explicit user confirmation.
+              URJA SAATHI implements local-first privacy safeguards: electricity bill images and consumer numbers are processed locally with client-side OCR and mathematical calculation engines. No personal data leaves the device without explicit user confirmation.
             </p>
             <div className="text-[11px] text-emerald-300 font-semibold flex items-center justify-between pt-2 border-t border-forest-800">
               <span className="flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Zero Cloud OCR Dependency
               </span>
-              <span>DPDP Compliant</span>
+              <span>DPDP-Aligned Technical Safeguards</span>
             </div>
           </Card>
         </div>

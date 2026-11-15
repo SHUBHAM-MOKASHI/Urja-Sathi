@@ -16,9 +16,13 @@ import { Badge } from '../common/Badge';
 
 interface TripartiteImpactCardsProps {
   summary: TripartiteImpactSummary;
+  isDemonstrationData?: boolean;
 }
 
-export const TripartiteImpactCards: React.FC<TripartiteImpactCardsProps> = ({ summary }) => {
+export const TripartiteImpactCards: React.FC<TripartiteImpactCardsProps> = ({
+  summary,
+  isDemonstrationData = true,
+}) => {
   const { measuredImpact, estimatedImpact, potentialImpact } = summary;
 
   return (
@@ -36,6 +40,15 @@ export const TripartiteImpactCards: React.FC<TripartiteImpactCardsProps> = ({ su
             <Badge variant="amber" size="sm">
               Anti-Greenwashing Standard
             </Badge>
+            {isDemonstrationData ? (
+              <Badge variant="slate" size="sm">
+                SAMPLE / DEMONSTRATION
+              </Badge>
+            ) : (
+              <Badge variant="emerald" size="sm">
+                LIVE LOCAL DATA
+              </Badge>
+            )}
           </div>
           <p className="text-amber-900/90 leading-relaxed text-xs sm:text-sm">
             Public clean-energy programs frequently inflate outcomes by blending theoretical estimates with real utility bills.

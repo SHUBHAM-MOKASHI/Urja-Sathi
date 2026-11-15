@@ -9,6 +9,8 @@ import {
   SyncQueueItem,
   ServiceRequest,
   ConflictRecord,
+  ApplianceInput,
+  DetailedWorkerProfile,
 } from '../types';
 
 export interface UrjaSaathiDB extends DBSchema {
@@ -24,12 +26,12 @@ export interface UrjaSaathiDB extends DBSchema {
   };
   quotations: {
     key: string;
-    value: InstallerQuotation;
+    value: DetailedQuotation | InstallerQuotation;
     indexes: { 'by-status': string };
   };
   workers: {
     key: string;
-    value: EnergyWorker;
+    value: DetailedWorkerProfile | EnergyWorker;
     indexes: { 'by-category': string };
   };
   userProfile: {
@@ -65,6 +67,110 @@ const DB_NAME = 'urja_saathi_offline_db';
 const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<UrjaSaathiDB>> | null = null;
+let inMemoryInventoryFallback: ApplianceInput[] | null = null;
+let inMemoryDetailedQuotationsFallback: DetailedQuotation[] | null = null;
+let inMemoryDetailedWorkersFallback: DetailedWorkerProfile[] | null = null;
+
+export function resetDbInMemoryFallbacks() {
+  inMemoryInventoryFallback = null;
+  inMemoryDetailedQuotationsFallback = null;
+  inMemoryDetailedWorkersFallback = null;
+}
+
+export function setDbPromise(promise: Promise<IDBPDatabase<UrjaSaathiDB>> | null) {
+  dbPromise = promise;
+}
+
+/**
+ * Sanitizes and validates an appliance inventory array.
+ * Ensures all required fields exist with valid numeric ranges, while preserving
+ * custom properties (thermostat setpoints, age, star rating, standby hours).
+ */
+export function sanitizeApplianceInventory(items: unknown): ApplianceInput[] {
+  if (!items || !Array.isArray(items)) {
+    return [];
+  }
+
+  const validCategories = new Set([
+    'air_conditioner',
+    'refrigerator',
+    'ceiling_fan',
+    'lighting',
+    'water_heater',
+    'television',
+    'washing_machine',
+    'air_cooler',
+    'water_pump',
+    'cooking_appliance',
+    'other',
+  ]);
+
+  const sanitized: ApplianceInput[] = [];
+
+  for (const item of items) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    const obj = item as Record<string, unknown>;
+
+    // Must have a valid wattage
+    const wattage =
+      typeof obj.wattage === 'number' && !isNaN(obj.wattage) && obj.wattage > 0
+        ? Math.max(1, Math.min(15000, obj.wattage))
+        : null;
+    if (wattage === null) {
+      continue;
+    }
+
+    const id =
+      typeof obj.id === 'string' && obj.id.trim()
+        ? obj.id.trim()
+        : `app_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const name =
+      typeof obj.name === 'string' && obj.name.trim() ? obj.name.trim() : 'Unnamed Appliance';
+    const rawCategory = typeof obj.category === 'string' ? obj.category : 'other';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const category = validCategories.has(rawCategory) ? (rawCategory as any) : 'other';
+    const quantity =
+      typeof obj.quantity === 'number' && !isNaN(obj.quantity) && obj.quantity > 0
+        ? Math.max(1, Math.min(100, Math.round(obj.quantity)))
+        : 1;
+    const dailyUsageHours =
+      typeof obj.dailyUsageHours === 'number' && !isNaN(obj.dailyUsageHours)
+        ? Math.max(0, Math.min(24, Number(obj.dailyUsageHours.toFixed(1))))
+        : 4;
+
+    const appliance: ApplianceInput = {
+      id,
+      name,
+      category,
+      quantity,
+      wattage,
+      dailyUsageHours,
+    };
+
+    if (typeof obj.temperatureSetpointC === 'number' && !isNaN(obj.temperatureSetpointC)) {
+      appliance.temperatureSetpointC = Math.max(16, Math.min(30, Math.round(obj.temperatureSetpointC)));
+    }
+
+    if (typeof obj.starRating === 'number' && !isNaN(obj.starRating)) {
+      appliance.starRating = Math.max(1, Math.min(5, Math.round(obj.starRating)));
+    }
+
+    if (typeof obj.ageYears === 'number' && !isNaN(obj.ageYears)) {
+      appliance.ageYears = Math.max(0, Math.min(50, Math.round(obj.ageYears)));
+    }
+
+    if (typeof obj.standbyHours === 'number' && !isNaN(obj.standbyHours)) {
+      appliance.standbyHours = Math.max(0, Math.min(24, Math.round(obj.standbyHours)));
+    }
+
+    sanitized.push(appliance);
+  }
+
+  return sanitized;
+}
 
 export function getDB() {
   if (!dbPromise) {
@@ -124,6 +230,9 @@ export function getDB() {
           conflictStore.createIndex('by-timestamp', 'timestamp');
         }
       },
+    }).catch((err) => {
+      dbPromise = null; // Do not permanently cache rejected promise on quota or security errors
+      throw err;
     });
   }
   return dbPromise;
@@ -162,12 +271,18 @@ export const dbService = {
     await db.put('assessments', assessment);
   },
 
+  async deleteAssessment(id: string): Promise<void> {
+    const db = await getDB();
+    await db.delete('assessments', id);
+  },
+
   // -------------------------------------------------------------
   // QUOTATIONS
   // -------------------------------------------------------------
   async getAllQuotations(): Promise<InstallerQuotation[]> {
     const db = await getDB();
-    return db.getAll('quotations');
+    const all = await db.getAll('quotations');
+    return all.filter((q) => !('totalPriceInr' in q)) as InstallerQuotation[];
   },
 
   async saveQuotation(quote: InstallerQuotation): Promise<void> {
@@ -176,32 +291,188 @@ export const dbService = {
   },
 
   async getDetailedQuotations(): Promise<DetailedQuotation[]> {
+    // 1. Primary Source of Truth: Dedicated 'quotations' IndexedDB store
     try {
       const db = await getDB();
-      const quotes = (await db.get('cachedSettings', 'detailed_quotations')) as DetailedQuotation[];
-      if (quotes && Array.isArray(quotes) && quotes.length > 0) return quotes;
+      const all = await db.getAll('quotations');
+      const detailed = all.filter(
+        (q) => q && typeof (q as DetailedQuotation).totalPriceInr === 'number'
+      ) as DetailedQuotation[];
+
+      if (detailed.length > 0) {
+        inMemoryDetailedQuotationsFallback = detailed;
+        return detailed;
+      }
+
+      // 2. Backward-compatible reading from legacy 'cachedSettings' store
+      const legacyFromSettings = (await db.get(
+        'cachedSettings',
+        'detailed_quotations'
+      )) as DetailedQuotation[] | undefined;
+
+      if (legacyFromSettings && Array.isArray(legacyFromSettings) && legacyFromSettings.length > 0) {
+        // Safe migration: put legacy records into the dedicated store
+        const tx = db.transaction('quotations', 'readwrite');
+        for (const q of legacyFromSettings) {
+          if (q && q.id) {
+            await tx.store.put(q);
+          }
+        }
+        await tx.done;
+
+        // Verify migration succeeded before removing legacy record
+        const verified = await db.getAll('quotations');
+        if (verified.length >= legacyFromSettings.length) {
+          try {
+            await db.delete('cachedSettings', 'detailed_quotations');
+          } catch {
+            // Non-critical if delete fails
+          }
+        }
+
+        inMemoryDetailedQuotationsFallback = legacyFromSettings;
+        return legacyFromSettings;
+      }
     } catch {
       // Fallback
     }
+
+    // 3. Fallback reading from legacy localStorage
     try {
-      const local = localStorage.getItem('urja_saathi_detailed_quotations');
-      return local ? JSON.parse(local) : [];
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const local = localStorage.getItem('urja_saathi_detailed_quotations');
+        if (local) {
+          const parsed = JSON.parse(local) as DetailedQuotation[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Attempt migration to quotations store
+            try {
+              const db = await getDB();
+              const tx = db.transaction('quotations', 'readwrite');
+              for (const q of parsed) {
+                if (q && q.id) await tx.store.put(q);
+              }
+              await tx.done;
+            } catch {
+              // Ignore
+            }
+            inMemoryDetailedQuotationsFallback = parsed;
+            return parsed;
+          }
+        }
+      }
     } catch {
-      return [];
+      // Ignore
     }
+
+    if (inMemoryDetailedQuotationsFallback !== null) {
+      return inMemoryDetailedQuotationsFallback;
+    }
+
+    return [];
   },
 
   async saveDetailedQuotations(quotes: DetailedQuotation[]): Promise<void> {
+    // Deduplicate by ID to prevent duplicate records
+    const seenIds = new Set<string>();
+    const deduplicated: DetailedQuotation[] = [];
+    for (const q of quotes) {
+      if (q && q.id && !seenIds.has(q.id)) {
+        seenIds.add(q.id);
+        deduplicated.push(q);
+      }
+    }
+
+    inMemoryDetailedQuotationsFallback = deduplicated;
+
     try {
       const db = await getDB();
-      await db.put('cachedSettings', quotes, 'detailed_quotations');
+      const allCurrent = await db.getAll('quotations');
+      const nonDetailed = allCurrent.filter((q) => !('totalPriceInr' in q));
+
+      const tx = db.transaction('quotations', 'readwrite');
+      await tx.store.clear();
+      for (const nd of nonDetailed) {
+        await tx.store.put(nd);
+      }
+      for (const q of deduplicated) {
+        await tx.store.put(q);
+      }
+      await tx.done;
     } catch {
       // Fallback
     }
+
     try {
-      localStorage.setItem('urja_saathi_detailed_quotations', JSON.stringify(quotes));
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('urja_saathi_detailed_quotations', JSON.stringify(deduplicated));
+      }
     } catch {
       // Ignore
+    }
+  },
+
+  // -------------------------------------------------------------
+  // APPLIANCE INVENTORY (SHARED CACHED SETTINGS)
+  // -------------------------------------------------------------
+  async getApplianceInventory(): Promise<ApplianceInput[]> {
+    try {
+      const db = await getDB();
+      const raw = (await db.get('cachedSettings', 'applianceInventory')) as unknown;
+      if (raw && Array.isArray(raw)) {
+        return sanitizeApplianceInventory(raw);
+      }
+    } catch {
+      // Fallback to localStorage or in-memory
+    }
+
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const local = localStorage.getItem('urja_saathi_appliance_inventory');
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed)) {
+            return sanitizeApplianceInventory(parsed);
+          }
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    if (inMemoryInventoryFallback !== null) {
+      return sanitizeApplianceInventory(inMemoryInventoryFallback);
+    }
+
+    return [];
+  },
+
+  async saveApplianceInventory(inventory: ApplianceInput[]): Promise<void> {
+    const sanitized = sanitizeApplianceInventory(inventory);
+    inMemoryInventoryFallback = sanitized;
+
+    try {
+      const db = await getDB();
+      await db.put('cachedSettings', sanitized, 'applianceInventory');
+    } catch {
+      // Fallback
+    }
+
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('urja_saathi_appliance_inventory', JSON.stringify(sanitized));
+      }
+    } catch {
+      // Ignore
+    }
+
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      try {
+        window.dispatchEvent(
+          new CustomEvent('urja-appliance-inventory-changed', { detail: sanitized })
+        );
+      } catch {
+        // Ignore in non-browser env
+      }
     }
   },
 
@@ -210,7 +481,8 @@ export const dbService = {
   // -------------------------------------------------------------
   async getAllWorkers(): Promise<EnergyWorker[]> {
     const db = await getDB();
-    return db.getAll('workers');
+    const all = await db.getAll('workers');
+    return all.filter((w) => !('verificationStatus' in w)) as EnergyWorker[];
   },
 
   async saveWorkers(workers: EnergyWorker[]): Promise<void> {
@@ -220,6 +492,117 @@ export const dbService = {
       await tx.store.put(worker);
     }
     await tx.done;
+  },
+
+  async getDetailedWorkers(): Promise<DetailedWorkerProfile[]> {
+    // 1. Primary Source of Truth: Dedicated 'workers' IndexedDB store
+    try {
+      const db = await getDB();
+      const all = await db.getAll('workers');
+      const detailed = all.filter(
+        (w) => w && ('verificationStatus' in w || 'verifiedQualifications' in w)
+      ) as DetailedWorkerProfile[];
+
+      if (detailed.length > 0) {
+        inMemoryDetailedWorkersFallback = detailed;
+        return detailed;
+      }
+    } catch {
+      // Fallback
+    }
+
+    // 2. Safe backward-compatible migration from localStorage
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const local = localStorage.getItem('urja_saathi_workers');
+        if (local) {
+          const parsed = JSON.parse(local) as DetailedWorkerProfile[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Deduplicate by ID
+            const seenIds = new Set<string>();
+            const deduped: DetailedWorkerProfile[] = [];
+            for (const w of parsed) {
+              if (w && w.id && !seenIds.has(w.id)) {
+                seenIds.add(w.id);
+                // Strict rule: Preserve verification and demo status (never promote sample to verified real)
+                deduped.push(w);
+              }
+            }
+
+            try {
+              const db = await getDB();
+              const tx = db.transaction('workers', 'readwrite');
+              for (const w of deduped) {
+                await tx.store.put(w);
+              }
+              await tx.done;
+            } catch {
+              // Ignore
+            }
+
+            inMemoryDetailedWorkersFallback = deduped;
+            return deduped;
+          }
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    if (inMemoryDetailedWorkersFallback !== null) {
+      return inMemoryDetailedWorkersFallback;
+    }
+
+    return [];
+  },
+
+  async saveDetailedWorkers(workers: DetailedWorkerProfile[]): Promise<void> {
+    // Deduplicate by ID to prevent duplicate workers
+    const seenIds = new Set<string>();
+    const deduplicated: DetailedWorkerProfile[] = [];
+    for (const w of workers) {
+      if (w && w.id && !seenIds.has(w.id)) {
+        seenIds.add(w.id);
+        deduplicated.push(w);
+      }
+    }
+
+    inMemoryDetailedWorkersFallback = deduplicated;
+
+    try {
+      const db = await getDB();
+      const all = await db.getAll('workers');
+      const nonDetailed = all.filter((w) => !('verificationStatus' in w));
+
+      const tx = db.transaction('workers', 'readwrite');
+      await tx.store.clear();
+      for (const nd of nonDetailed) {
+        await tx.store.put(nd);
+      }
+      for (const w of deduplicated) {
+        await tx.store.put(w);
+      }
+      await tx.done;
+    } catch {
+      // Fallback
+    }
+
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('urja_saathi_workers', JSON.stringify(deduplicated));
+      }
+    } catch {
+      // Ignore
+    }
+  },
+
+  async saveWorkerProfile(worker: DetailedWorkerProfile): Promise<void> {
+    const existing = await this.getDetailedWorkers();
+    const idx = existing.findIndex((w) => w.id === worker.id);
+    const updated = idx >= 0
+      ? existing.map((w) => (w.id === worker.id ? worker : w))
+      : [...existing, worker];
+    await this.saveDetailedWorkers(updated);
   },
 
   // -------------------------------------------------------------
@@ -321,6 +704,8 @@ export const dbService = {
     serviceRequests?: boolean;
     assessments?: boolean;
     quotations?: boolean;
+    profile?: boolean;
+    workers?: boolean;
     fullReset?: boolean;
   }): Promise<{ clearedStores: string[]; success: boolean }> {
     const db = await getDB();
@@ -334,6 +719,8 @@ export const dbService = {
       await db.clear('serviceRequests');
       await db.clear('conflictLog');
       await db.clear('cachedSettings');
+      await db.clear('userProfile');
+      await db.clear('workers');
       cleared.push(
         'bills',
         'assessments',
@@ -341,8 +728,11 @@ export const dbService = {
         'offlineSyncQueue',
         'serviceRequests',
         'conflictLog',
-        'cachedSettings'
+        'cachedSettings',
+        'userProfile',
+        'workers'
       );
+      resetDbInMemoryFallbacks();
       try {
         localStorage.removeItem('urja_saathi_requests');
         localStorage.removeItem('urja_saathi_workers');
@@ -356,6 +746,16 @@ export const dbService = {
     if (options?.bills) {
       await db.clear('bills');
       cleared.push('bills');
+      try {
+        const queueItems = await db.getAll('offlineSyncQueue');
+        for (const item of queueItems) {
+          if (item.entityType === 'bill_record' || (item.entityType as string) === 'bill') {
+            await db.delete('offlineSyncQueue', item.id);
+          }
+        }
+      } catch {
+        // Ignore
+      }
     }
 
     if (options?.queue) {
@@ -367,6 +767,12 @@ export const dbService = {
       await db.clear('serviceRequests');
       cleared.push('serviceRequests');
       try {
+        const queueItems = await db.getAll('offlineSyncQueue');
+        for (const item of queueItems) {
+          if (item.entityType === 'service_request') {
+            await db.delete('offlineSyncQueue', item.id);
+          }
+        }
         localStorage.removeItem('urja_saathi_requests');
       } catch {
         // Ignore
@@ -376,6 +782,16 @@ export const dbService = {
     if (options?.assessments) {
       await db.clear('assessments');
       cleared.push('assessments');
+      try {
+        const queueItems = await db.getAll('offlineSyncQueue');
+        for (const item of queueItems) {
+          if (item.entityType === 'solar_assessment') {
+            await db.delete('offlineSyncQueue', item.id);
+          }
+        }
+      } catch {
+        // Ignore
+      }
     }
 
     if (options?.quotations) {
@@ -383,6 +799,30 @@ export const dbService = {
       cleared.push('quotations');
     }
 
+    if (options?.profile) {
+      await db.clear('userProfile');
+      cleared.push('userProfile');
+    }
+
+    if (options?.workers) {
+      await db.clear('workers');
+      cleared.push('workers');
+      try {
+        localStorage.removeItem('urja_saathi_workers');
+      } catch {
+        // Ignore
+      }
+    }
+
     return { clearedStores: cleared, success: true };
   },
 };
+
+export const getApplianceInventory = () => dbService.getApplianceInventory();
+export const saveApplianceInventory = (inv: ApplianceInput[]) => dbService.saveApplianceInventory(inv);
+export const getDetailedQuotations = () => dbService.getDetailedQuotations();
+export const saveDetailedQuotations = (quotes: DetailedQuotation[]) => dbService.saveDetailedQuotations(quotes);
+export const getDetailedWorkers = () => dbService.getDetailedWorkers();
+export const saveDetailedWorkers = (workers: DetailedWorkerProfile[]) => dbService.saveDetailedWorkers(workers);
+export const saveWorkerProfile = (worker: DetailedWorkerProfile) => dbService.saveWorkerProfile(worker);
+

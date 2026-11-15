@@ -73,17 +73,18 @@ export const WorkerRegistrationModal: React.FC<WorkerRegistrationModalProps> = (
         certificateNumber: certNumber.trim(),
         issuingAuthority: issuingAuthority.trim() || 'State Licensing Board / NSDC',
         issueDate: new Date().toISOString().split('T')[0],
-        isVerified: true, // Auto-verified for hackathon demonstration
-        verificationSource: 'Live Digital Licensing Registry Check',
+        isVerified: false, // Security Rule: Client self-registration cannot auto-verify credentials
+        verificationSource: 'Self-submitted document awaiting institutional verification with licensing board',
       });
     }
 
+    // Security & Safety Rule: Technical electrical/solar roles require authoritative verification.
+    // Self-submitted profiles remain 'verification_pending' until verified by an authoritative backend/admin.
     if (roleCategory === 'community_energy_guide') {
       verificationStatus = 'self_declared_only';
-    } else if (verifiedQualifications.length > 0) {
-      verificationStatus = 'verified_licensed';
     } else {
-      verificationStatus = 'verification_pending';
+      const hasPreVerifiedCredentials = verifiedQualifications.some((q) => q.isVerified);
+      verificationStatus = hasPreVerifiedCredentials ? 'verified_licensed' : 'verification_pending';
     }
 
     const updatedProfile: DetailedWorkerProfile = {
@@ -107,7 +108,9 @@ export const WorkerRegistrationModal: React.FC<WorkerRegistrationModalProps> = (
       disclaimer:
         roleCategory === 'community_energy_guide'
           ? 'NON-TECHNICAL COMMUNITY GUIDE: Assists with bill comprehension and PM Surya Ghar portal applications.'
-          : 'Licensed / certified energy technician qualified for on-site diagnostic and installation jobs.',
+          : verificationStatus === 'verified_licensed'
+          ? 'Licensed / certified energy technician qualified for on-site diagnostic and installation jobs.'
+          : 'CREDENTIALS UNDER REVIEW: Pending physical document verification by State Licensing Board or authorized certifying institute.',
     };
 
     onSaveWorker(updatedProfile);

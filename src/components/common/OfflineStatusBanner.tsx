@@ -31,19 +31,19 @@ export const OfflineStatusBanner: React.FC = () => {
         showNotification(
           'success',
           'Sync Complete',
-          `Successfully synchronized ${res.syncedCount} queued record(s) to database.`
+          `Successfully processed ${res.syncedCount} queued record(s) in local storage.`
         );
       } else if (res.failedCount > 0) {
         showNotification(
           'warning',
           'Sync Partial',
-          `${res.failedCount} record(s) failed transmission. Will safely retry automatically.`
+          `${res.failedCount} record(s) pending transmission. Will safely retry automatically.`
         );
       } else {
         showNotification('info', 'Queue Checked', 'All local records are currently up to date.');
       }
     } catch {
-      showNotification('error', 'Sync Failed', 'Could not reach server. Safe local queue preserved.');
+      showNotification('error', 'Sync Status', 'Offline mode active. Safe local queue preserved.');
     }
   };
 

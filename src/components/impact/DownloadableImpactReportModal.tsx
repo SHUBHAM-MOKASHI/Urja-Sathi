@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { AdminImpactDashboardData } from '../../types';
+import { maskName, maskConsumerNumber } from '../../services/impactTrackerService';
 import {
   Printer,
   ShieldCheck,
@@ -10,6 +11,8 @@ import {
   CheckCircle2,
   Coins,
   Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 interface DownloadableImpactReportModalProps {
@@ -23,6 +26,8 @@ export const DownloadableImpactReportModal: React.FC<DownloadableImpactReportMod
   onClose,
   dashboardData,
 }) => {
+  const [maskPersonalInfo, setMaskPersonalInfo] = useState<boolean>(true);
+
   const handlePrint = () => {
     window.print();
   };
@@ -58,14 +63,25 @@ export const DownloadableImpactReportModal: React.FC<DownloadableImpactReportMod
               Formal audit report prepared with strict tripartite evidence separation. Ready for PDF download or print.
             </span>
           </div>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handlePrint}
-            icon={<Printer className="h-4 w-4" />}
-          >
-            Print / Save as PDF
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setMaskPersonalInfo(!maskPersonalInfo)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-white text-emerald-950 text-xs font-semibold hover:bg-emerald-100 transition-colors"
+              title={maskPersonalInfo ? "Showing privacy-masked identifiers (DPDP safe). Click to reveal full names." : "Showing unmasked names. Click to mask for external distribution."}
+            >
+              {maskPersonalInfo ? <EyeOff className="w-3.5 h-3.5 text-emerald-700" /> : <Eye className="w-3.5 h-3.5 text-slate-700" />}
+              <span>{maskPersonalInfo ? 'PII Masked (DPDP Safe)' : 'PII Unmasked'}</span>
+            </button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handlePrint}
+              icon={<Printer className="h-4 w-4" />}
+            >
+              Print / Save as PDF
+            </Button>
+          </div>
         </div>
 
         {/* Printable Document Container */}
@@ -73,13 +89,22 @@ export const DownloadableImpactReportModal: React.FC<DownloadableImpactReportMod
           id="printable-impact-dossier"
           className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 text-slate-800 space-y-6 print:border-none print:p-0 print:shadow-none"
         >
-          {/* Hackathon Demonstration Data Watermark / Banner */}
-          <div className="p-3 bg-amber-50 rounded-xl border border-amber-300 text-center text-xs text-amber-900 font-bold uppercase tracking-wider flex items-center justify-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>
-              Demonstration Audit Dossier — Simulated Dataset for Hackathon Verification & Evaluation
-            </span>
-          </div>
+          {/* Hackathon Demonstration / Live Audit Data Watermark Banner */}
+          {dashboardData.isDemonstrationData ? (
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-300 text-center text-xs text-amber-900 font-bold uppercase tracking-wider flex items-center justify-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                Demonstration Audit Dossier — Simulated Dataset for Hackathon Verification & Evaluation
+              </span>
+            </div>
+          ) : (
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-300 text-center text-xs text-emerald-950 font-bold uppercase tracking-wider flex items-center justify-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>
+                Live Local Records Dossier — Audited Empirical Data from Device Storage
+              </span>
+            </div>
+          )}
 
           {/* Header */}
           <div className="border-b-2 border-emerald-700 pb-4 flex flex-col sm:flex-row justify-between sm:items-end gap-3">
@@ -131,7 +156,7 @@ export const DownloadableImpactReportModal: React.FC<DownloadableImpactReportMod
             <div className="p-2">
               <span className="text-[11px] text-slate-500 font-medium block">Consenting Households</span>
               <span className="text-xl font-bold text-slate-900">{totalConsentingHouseholds}</span>
-              <span className="text-[10px] text-slate-400 block">DPDP Act Compliant</span>
+              <span className="text-[10px] text-slate-400 block">DPDP Consent Logged</span>
             </div>
             <div className="p-2 border-l border-slate-200">
               <span className="text-[11px] text-slate-500 font-medium block">Completed Services</span>
@@ -259,17 +284,19 @@ export const DownloadableImpactReportModal: React.FC<DownloadableImpactReportMod
                   {verifiedHouseholds.map((h) => (
                     <tr key={h.householdId}>
                       <td className="py-2.5 px-3 border-r border-slate-200">
-                        <div className="font-bold text-slate-900">{h.householdName}</div>
+                        <div className="font-bold text-slate-900">
+                          {maskPersonalInfo ? maskName(h.householdName) : h.householdName}
+                        </div>
                         <div className="text-[10px] text-slate-500">{h.locality}</div>
                       </td>
                       <td className="py-2.5 px-3 border-r border-slate-200 font-mono text-[11px]">
-                        <div>{h.baselineBill?.billId}</div>
+                        <div>{maskPersonalInfo ? maskConsumerNumber(h.baselineBill?.billId) : h.baselineBill?.billId}</div>
                         <div className="text-slate-600">
                           {h.baselineBill?.unitsKwh} kWh (₹{h.baselineBill?.amountInr})
                         </div>
                       </td>
                       <td className="py-2.5 px-3 border-r border-slate-200 font-mono text-[11px]">
-                        <div>{h.subsequentBill?.billId}</div>
+                        <div>{maskPersonalInfo ? maskConsumerNumber(h.subsequentBill?.billId) : h.subsequentBill?.billId}</div>
                         <div className="text-slate-600">
                           {h.subsequentBill?.unitsKwh} kWh (₹{h.subsequentBill?.amountInr})
                         </div>

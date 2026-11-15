@@ -54,6 +54,52 @@ export function validateBillFile(file: File): FileValidationResult {
 }
 
 /**
+ * Asynchronously inspects the leading bytes (magic numbers) of the file
+ * to verify that a genuine JPEG or PNG image is present, preventing
+ * renamed executable, HTML, or SVG files from reaching the OCR engine.
+ */
+export async function validateBillFileSignature(file: File): Promise<FileValidationResult> {
+  const basic = validateBillFile(file);
+  if (!basic.isValid) {
+    return basic;
+  }
+
+  try {
+    const slice = file.slice(0, 8);
+    const buffer = await slice.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+
+    if (bytes.length < 4) {
+      return {
+        isValid: false,
+        error: 'File header is too short or corrupted.',
+      };
+    }
+
+    // JPEG signature: FF D8 FF
+    const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+
+    // PNG signature: 89 50 4E 47 (0x89 'P' 'N' 'G')
+    const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+
+    if (!isJpeg && !isPng) {
+      return {
+        isValid: false,
+        error:
+          'Invalid file signature. The file content does not match genuine JPEG or PNG binary headers (renamed or corrupted file).',
+      };
+    }
+
+    return { isValid: true };
+  } catch (err: any) {
+    return {
+      isValid: false,
+      error: `Failed to verify file integrity: ${err?.message || 'Read error'}`,
+    };
+  }
+}
+
+/**
  * Validates confirmed bill fields before saving into offline IndexedDB
  */
 export function validateBillData(data: {
@@ -70,7 +116,7 @@ export function validateBillData(data: {
   const warnings: string[] = [];
 
   // Required Field Checks
-  if (data.totalAmount === null || data.totalAmount === undefined || isNaN(data.totalAmount)) {
+  if (data.totalAmount === null || data.totalAmount === undefined || !Number.isFinite(data.totalAmount)) {
     errors.push('Total Bill Amount is required and must be a valid number.');
   } else if (data.totalAmount <= 0) {
     errors.push('Total Bill Amount must be greater than ₹ 0.');
@@ -78,7 +124,7 @@ export function validateBillData(data: {
     warnings.push('Unusually high bill amount (> ₹5,00,000). Please double check the figure.');
   }
 
-  if (data.unitsConsumed === null || data.unitsConsumed === undefined || isNaN(data.unitsConsumed)) {
+  if (data.unitsConsumed === null || data.unitsConsumed === undefined || !Number.isFinite(data.unitsConsumed)) {
     errors.push('Units Consumed (kWh) is required and must be a valid number.');
   } else if (data.unitsConsumed < 0) {
     errors.push('Units Consumed cannot be negative.');
@@ -107,14 +153,18 @@ export function validateBillData(data: {
   if (
     data.currentReading !== null &&
     data.currentReading !== undefined &&
+    Number.isFinite(data.currentReading) &&
     data.previousReading !== null &&
-    data.previousReading !== undefined
+    data.previousReading !== undefined &&
+    Number.isFinite(data.previousReading)
   ) {
-    if (data.currentReading < data.previousReading) {
+    if (data.currentReading < 0 || data.previousReading < 0) {
+      errors.push('Meter readings cannot be negative numbers.');
+    } else if (data.currentReading < data.previousReading) {
       warnings.push(
         `Current meter reading (${data.currentReading}) is lower than previous reading (${data.previousReading}). (Unless meter rolled over past 99,999).`
       );
-    } else if (data.unitsConsumed !== null && data.unitsConsumed !== undefined) {
+    } else if (data.unitsConsumed !== null && data.unitsConsumed !== undefined && Number.isFinite(data.unitsConsumed)) {
       const difference = data.currentReading - data.previousReading;
       if (Math.abs(difference - data.unitsConsumed) > 5) {
         warnings.push(

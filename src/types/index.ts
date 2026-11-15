@@ -641,6 +641,7 @@ export interface ServiceRequest {
     createdAt: string;
   };
   complaintTicket?: ComplaintTicket;
+  isDemoRequest?: boolean;
 }
 
 export interface WorkerMatchResult {
@@ -774,7 +775,7 @@ export interface AdminImpactDashboardData {
     workerEarningsDisbursedInr: number;
     completedJobs: number;
   }[];
-  isDemonstrationData: true;
+  isDemonstrationData: boolean;
   lastAuditTimestamp: string;
 }
 

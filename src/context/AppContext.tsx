@@ -23,6 +23,12 @@ interface AppContextType {
   syncSummary: OfflineSyncSummary | null;
   triggerManualSync: () => Promise<SyncExecutionResult>;
   refreshOfflineQueue: () => Promise<void>;
+  // UI & Navigation Shell
+  isSidebarCollapsed: boolean;
+  toggleSidebar: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  isMobileDrawerOpen: boolean;
+  setIsMobileDrawerOpen: (open: boolean) => void;
 }
 
 const defaultProfile: UserProfile = {
@@ -43,7 +49,14 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isOnline, isOffline } = useOfflineStatus();
   const [language, setLanguageState] = useState<Language>(() => {
-    return (localStorage.getItem('urja_language') as Language) || 'en';
+    try {
+      if (typeof localStorage !== 'undefined') {
+        return (localStorage.getItem('urja_language') as Language) || 'en';
+      }
+    } catch {
+      // Graceful fallback for non-browser / SSR environments
+    }
+    return 'en';
   });
   const [userProfile, setUserProfile] = useState<UserProfile>(defaultProfile);
   const [isVoiceActive, setIsVoiceActive] = useState<boolean>(false);
@@ -55,9 +68,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncSummary, setSyncSummary] = useState<OfflineSyncSummary | null>(null);
 
+  // UI Navigation Shell state
+  const [isSidebarCollapsed, setIsSidebarCollapsedState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('urja_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
+
+  const setSidebarCollapsed = (collapsed: boolean) => {
+    setIsSidebarCollapsedState(collapsed);
+    try {
+      localStorage.setItem('urja_sidebar_collapsed', String(collapsed));
+    } catch {
+      // Ignore
+    }
+  };
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!isSidebarCollapsed);
+  };
+
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem('urja_language', lang);
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('urja_language', lang);
+      }
+    } catch {
+      // Ignore
+    }
   };
 
   const refreshCounters = async () => {
@@ -112,16 +154,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     initData();
 
-    // Listen to queue changes across components
+    // Listen to queue changes and bill updates across components
     const handleQueueChanged = () => {
       refreshOfflineQueue();
     };
 
+    const handleBillsChanged = () => {
+      refreshCounters();
+    };
+
     window.addEventListener('urja-offline-queue-changed', handleQueueChanged);
+    window.addEventListener('urja-bills-changed', handleBillsChanged);
     const unregisterAutoSync = syncService.initAutoSync();
 
     return () => {
       window.removeEventListener('urja-offline-queue-changed', handleQueueChanged);
+      window.removeEventListener('urja-bills-changed', handleBillsChanged);
       unregisterAutoSync();
     };
   }, [refreshOfflineQueue]);
@@ -156,6 +204,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         syncSummary,
         triggerManualSync,
         refreshOfflineQueue,
+        isSidebarCollapsed,
+        toggleSidebar,
+        setSidebarCollapsed,
+        isMobileDrawerOpen,
+        setIsMobileDrawerOpen,
       }}
     >
       {children}

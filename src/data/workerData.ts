@@ -196,6 +196,7 @@ export const SAMPLE_SERVICE_REQUESTS: ServiceRequest[] = [
     isTechnical: true,
     consentGiven: true,
     createdAt: '2026-02-17T09:30:00Z',
+    isDemoRequest: true,
   },
   {
     id: 'req_load_balance_02',
@@ -212,6 +213,7 @@ export const SAMPLE_SERVICE_REQUESTS: ServiceRequest[] = [
     isTechnical: true,
     consentGiven: true,
     createdAt: '2026-02-17T11:15:00Z',
+    isDemoRequest: true,
   },
   {
     id: 'req_bill_guidance_03',
@@ -239,6 +241,7 @@ export const SAMPLE_SERVICE_REQUESTS: ServiceRequest[] = [
       reviewText: 'Pooja didi explained the process in simple Hindi and saved us from a costly portal rejection! Highly recommended.',
       createdAt: '2026-02-16T12:05:00Z',
     },
+    isDemoRequest: true,
   },
 ];
 

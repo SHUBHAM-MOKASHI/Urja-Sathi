@@ -3,6 +3,7 @@ import { ServiceRequest, DetailedWorkerProfile } from '../../types';
 import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
 import { formatCurrency } from '../../utils/formatters';
+import { maskPhone, maskName } from '../../services/impactTrackerService';
 import {
   MapPin,
   Phone,
@@ -120,7 +121,11 @@ export const ServiceRequestTrackingCard: React.FC<ServiceRequestTrackingCardProp
           <span>
             {mode === 'worker' && request.status === 'pending'
               ? 'Contact phone revealed upon accepting request'
-              : `${request.householdName} • ${request.householdPhone}`}
+              : !request.consentGiven
+              ? `${maskName(request.householdName)} • Phone Private (Consent Withheld)`
+              : mode === 'worker'
+              ? `${request.householdName} • ${request.householdPhone}`
+              : `${request.householdName} • ${maskPhone(request.householdPhone)}`}
           </span>
         </div>
       </div>

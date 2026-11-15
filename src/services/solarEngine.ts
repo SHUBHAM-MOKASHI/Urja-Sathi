@@ -235,9 +235,15 @@ export function generateSolarScenarios(
  * Main URJA SAATHI Solar Feasibility Assistant engine
  */
 export function runSolarFeasibilityEngine(input: SolarEngineInput): SolarEngineResult {
-  const monthlyUnits = Math.max(0, input.monthlyConsumptionKwh || 0);
-  const monthlyBill = Math.max(0, input.monthlyElectricityBillInr || 0);
-  const usableArea = Math.max(0, input.usableRoofAreaSqFt || 0);
+  const monthlyUnits = Number.isFinite(input.monthlyConsumptionKwh)
+    ? Math.max(0, input.monthlyConsumptionKwh || 0)
+    : 0;
+  const monthlyBill = Number.isFinite(input.monthlyElectricityBillInr)
+    ? Math.max(0, input.monthlyElectricityBillInr || 0)
+    : 0;
+  const usableArea = Number.isFinite(input.usableRoofAreaSqFt)
+    ? Math.max(0, input.usableRoofAreaSqFt || 0)
+    : 0;
   const roofOwnership = input.roofOwnership || 'owned_individual';
 
   // Configured tariffs with fallbacks
