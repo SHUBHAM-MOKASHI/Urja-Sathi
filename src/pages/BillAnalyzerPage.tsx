@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -43,6 +43,11 @@ export const BillAnalyzerPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AnalyzerTab>('ocr_scan');
   const [ocrStep, setOcrStep] = useState<OcrStep>('upload');
 
+  const ocrController = useRef<AbortController | null>(null);
+  const [billSource, setBillSource] = useState<ElectricityBill['source']>('ocr_scan');
+  const cancelOcr = () => { ocrController.current?.abort(); ocrController.current = null; };
+  useEffect(() => () => { ocrController.current?.abort(); }, []);
+
   // OCR Workflow State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [billPreviewUrl, setBillPreviewUrl] = useState<string>('');
@@ -81,13 +86,18 @@ export const BillAnalyzerPage: React.FC = () => {
   }, []);
 
   // 1. File Selected in Upload Zone
-  const handleFileSelected = (file: File) => {
+  const handleFileSelected = (file: File, source: 'ocr_scan' | 'sample' = 'ocr_scan') => {
+    cancelOcr();
+    setBillSource(source);
     setSelectedFile(file);
     setOcrStep('preview');
   };
 
   // 2. User Confirmed Inspection -> Start Tesseract.js Analysis
   const handleConfirmStartOcr = async (canvas: HTMLCanvasElement, dataUrl: string) => {
+    cancelOcr();
+    const controller = new AbortController();
+    ocrController.current = controller;
     setBillPreviewUrl(dataUrl);
     setOcrStep('processing');
     setOcrError(null);
@@ -95,14 +105,16 @@ export const BillAnalyzerPage: React.FC = () => {
 
     try {
       const result = await runOcrRecognition(canvas, (progress) => {
-        setOcrProgress(progress);
-      });
+        if (!controller.signal.aborted) setOcrProgress(progress);
+      }, controller.signal);
+      if (controller.signal.aborted || ocrController.current !== controller) return;
 
       // Parse fields using our specialized Indian Discom heuristics
       const parsed = parseElectricityBill(result.text, result.confidence);
       setParsedBillData(parsed);
       setOcrStep('review');
     } catch (err: unknown) {
+      if (controller.signal.aborted || ocrController.current !== controller) return;
       console.error('Tesseract OCR error:', err);
       const message = err instanceof Error ? err.message : 'Character recognition could not process the image.';
       setOcrError(message);
@@ -137,6 +149,7 @@ export const BillAnalyzerPage: React.FC = () => {
     } catch (err) {
       console.error('Error saving bill:', err);
       showNotification('error', 'Storage Error', 'Could not write bill to local IndexedDB.');
+      throw err;
     }
   };
 
@@ -152,6 +165,8 @@ export const BillAnalyzerPage: React.FC = () => {
 
   // Reset OCR flow
   const handleResetOcr = () => {
+    cancelOcr();
+    setOcrError(null);
     setSelectedFile(null);
     setBillPreviewUrl('');
     setParsedBillData(null);
@@ -161,6 +176,8 @@ export const BillAnalyzerPage: React.FC = () => {
 
   // Graceful offline fallback: allow manual review if OCR is interrupted
   const handleProceedToManualReview = () => {
+    cancelOcr();
+    if (billSource !== 'sample') setBillSource('manual');
     const emptyParsed = parseElectricityBill('', 0);
     setParsedBillData(emptyParsed);
     setOcrStep('review');
@@ -183,7 +200,8 @@ export const BillAnalyzerPage: React.FC = () => {
         dueDate: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
         billDate: new Date().toISOString().split('T')[0],
         isPeakSeason: false,
-        source: 'manual',
+        source: 'sample',
+        chargeStatus: {fixedCharges:'estimated',surcharges:'estimated'},
         slabBreakdown: slab.breakdown,
         createdAt: new Date().toISOString(),
       };
@@ -191,7 +209,7 @@ export const BillAnalyzerPage: React.FC = () => {
       await storageService.saveConfirmedBill(manualBill, true);
       await refreshCounters();
       await loadSavedBills();
-      showNotification('success', 'Bill Saved', `Added ${calcMonth} bill to offline IndexedDB.`);
+      showNotification('success', 'Bill Saved', `Added ${calcMonth} illustrative sample estimate to offline IndexedDB.`);
     } catch {
       showNotification('error', 'Failed', 'Could not save manual entry.');
     } finally {
@@ -272,6 +290,7 @@ export const BillAnalyzerPage: React.FC = () => {
               progress={ocrProgress}
               errorMessage={ocrError}
               onRetry={() => {
+                cancelOcr();
                 if (selectedFile) setOcrStep('preview');
               }}
               onCancel={handleResetOcr}
@@ -283,6 +302,7 @@ export const BillAnalyzerPage: React.FC = () => {
           {ocrStep === 'review' && parsedBillData && (
             <BillReviewForm
               parsedData={parsedBillData}
+              source={billSource}
               billImagePreviewUrl={billPreviewUrl}
               onConfirmSave={handleSaveConfirmedBill}
               onCancel={handleResetOcr}
@@ -298,7 +318,7 @@ export const BillAnalyzerPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-xl sm:text-2xl font-extrabold text-emerald-950">
-                    Bill Verified & Saved!
+                    Reviewed Bill Saved!
                   </h3>
                   <p className="text-xs sm:text-sm text-emerald-800 mt-1">
                     Saved to local IndexedDB. Your household energy baseline and appliance recommendations have been updated.
@@ -401,7 +421,7 @@ export const BillAnalyzerPage: React.FC = () => {
             <Card className="p-6">
               <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-emerald-600" />
-                Manual Tariff Simulator
+                Illustrative Tariff Simulator
               </h3>
 
               <div className="space-y-4">
@@ -579,7 +599,7 @@ export const BillAnalyzerPage: React.FC = () => {
                             )}
                           </td>
                           <td className="py-3 px-4 text-xs text-slate-500">
-                            {formatDate(b.dueDate)}
+                            {b.dueDateStatus === 'unknown' || !b.dueDate ? 'Not provided' : formatDate(b.dueDate)}
                           </td>
                           <td className="py-3 px-4 text-right">
                             <button

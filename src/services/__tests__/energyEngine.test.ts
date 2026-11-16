@@ -257,7 +257,7 @@ describe('Energy Savings Intelligence Engine', () => {
 
       const slabRec = resArbitrage.recommendations.find((r) => r.id === 'rec_slab_arbitrage');
       expect(slabRec).toBeDefined();
-      expect(slabRec?.estimatedEnergyReductionKwh).toBe(25);
+      expect(slabRec?.estimatedEnergyReductionKwh).toBe(0); // Target overlaps the appliance actions.
     });
   });
 });

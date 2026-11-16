@@ -87,6 +87,10 @@ export const BillOcrProgress: React.FC<BillOcrProgressProps> = ({
             </div>
           </div>
 
+          <div className="flex justify-center gap-4">
+            <button type="button" onClick={onCancel}>Cancel OCR</button>
+            <button type="button" onClick={onManualEntry}>Enter Details Manually</button>
+          </div>
           {/* Privacy Note */}
           <div className="pt-2 flex items-center justify-center gap-2 text-xs text-emerald-800 font-medium">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />

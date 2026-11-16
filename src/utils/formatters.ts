@@ -1,6 +1,11 @@
-/**
- * Format numerical amount into Indian Rupee format (e.g. ₹ 4,500)
- */
+/** Legacy saved assessments use zero for unavailable payback; never render it as instant recovery. */
+export function formatSavedSolarPayback(years: number | null | undefined, annualSavings: number): string {
+  if (Number.isFinite(annualSavings) && annualSavings <= 0) return 'Not economically viable';
+  if (typeof years !== 'number' || !Number.isFinite(years) || years <= 0) return 'Not available';
+  return `${years} Years`;
+}
+
+/** Format numerical amount into Indian Rupee format (e.g. ₹ 4,500). */
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',

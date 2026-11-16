@@ -138,19 +138,22 @@ export function evaluateEnergyOpportunities(
       .reduce((acc, b) => acc + b.monthlyKwh, 0);
 
     if (totalAcKwh >= 25) {
-      const currentSetpoint = acList[0].temperatureSetpointC || 20;
       const targetSetpoint = 24;
-      const tempDelta = Math.max(1, targetSetpoint - currentSetpoint);
-      const savingsFactor = Math.min(0.36, tempDelta * 0.06); // 6% per degree capped at 36%
-      const kwhReduction = Number((totalAcKwh * savingsFactor).toFixed(1));
+      const rawReduction = acList.reduce((sum, ac) => {
+        const { totalKwh } = calculateApplianceBreakdowns([ac], periodDays, marginalTariff);
+        const delta = Math.max(0, targetSetpoint - (ac.temperatureSetpointC ?? 20));
+        return sum + totalKwh * Math.min(0.36, delta * 0.06);
+      }, 0);
+      const savingsFactor = rawReduction / totalAcKwh;
+      const kwhReduction = Number(rawReduction.toFixed(1));
       const monthlySavingsInr = Math.round(kwhReduction * marginalTariff);
 
       if (kwhReduction > 5) {
         recs.push({
           id: 'rec_ac_setpoint',
-          action: `Set AC thermostat to 24°C (Currently ~${currentSetpoint}°C)`,
+          action: 'Set AC thermostats below 24°C to 24°C',
           category: 'no_cost',
-          reason: `Bureau of Energy Efficiency (BEE) research proves each 1°C increase in AC setpoint reduces compressor electricity by ~6%. Increasing from ${currentSetpoint}°C to 24°C lowers cooling electricity by ${(savingsFactor * 100).toFixed(0)}%.`,
+          reason: `Bureau of Energy Efficiency (BEE) research proves each 1°C increase in AC setpoint reduces compressor electricity by ~6%. Adjusting each eligible AC to 24°C lowers combined cooling electricity by ${(savingsFactor * 100).toFixed(0)}%.`,
           estimatedEnergyReductionKwh: kwhReduction,
           estimatedMonetaryBenefitInr: monthlySavingsInr,
           upfrontExpenditureInr: 0,
@@ -189,7 +192,7 @@ export function evaluateEnergyOpportunities(
       const costPerFan = 2800; // Benchmark price for BEE 5-star BLDC fan in India
       const totalCost = totalFanQty * costPerFan;
       const paybackMonths = Number((totalCost / (monthlySavingsInr || 1)).toFixed(1));
-      const fitsBudget = totalCost <= userBudget || userBudget === 0;
+      const fitsBudget = totalCost <= userBudget;
 
       recs.push({
         id: 'rec_bldc_fan',
@@ -230,7 +233,7 @@ export function evaluateEnergyOpportunities(
       const monthlySavingsInr = Math.round(kwhReduction * marginalTariff);
       const totalCost = totalBulbs * 110; // ₹110 per branded LED bulb
       const paybackMonths = Number((totalCost / (monthlySavingsInr || 1)).toFixed(1));
-      const fitsBudget = totalCost <= userBudget || userBudget === 0;
+      const fitsBudget = totalCost <= userBudget;
 
       recs.push({
         id: 'rec_led_lighting',
@@ -369,8 +372,8 @@ export function evaluateEnergyOpportunities(
   // If household is just 10-40 units above a punitive slab threshold (e.g. 301-340 or 101-135)
   if (billedUnits > 300 && billedUnits <= 350) {
     const overflowUnits = billedUnits - 300;
-    const savingOpportunityKwh = overflowUnits;
-    const monetaryOpportunityInr = Math.round(overflowUnits * 7.9);
+    const savingOpportunityKwh = 0; // A target achieved through other actions, not an additional saving.
+    const monetaryOpportunityInr = 0;
 
     recs.push({
       id: 'rec_slab_arbitrage',
@@ -558,7 +561,7 @@ export function runEnergySavingsEngine(input: EnergyEngineInput): EngineAnalysis
   const tariffAssumptions: TariffConfiguration = {
     baseRatePerKwh: effectiveTariff,
     marginalRatePerKwh: marginalTariff,
-    fixedChargesInr: slabBreakdown.fixedCharges,
+    fixedChargesInr: input.tariffConfig?.fixedChargesInr ?? slabBreakdown.fixedCharges,
     discomName: input.tariffConfig?.discomName || DEFAULT_TARIFF_CONFIG.discomName,
     isIllustrativeEstimate: true,
   };
@@ -621,6 +624,24 @@ export function runEnergySavingsEngine(input: EnergyEngineInput): EngineAnalysis
       diagnostics,
       tariffAssumptions,
     };
+  }
+
+  // Select a portfolio within the total budget and reconcile estimates with the bill.
+  // Fixed charges remain payable; a slab target is not an independent action.
+  let remainingBudget = userBudget;
+  const variableBill = Math.max(0, billAmount - tariffAssumptions.fixedChargesInr);
+  const rawKwh = recommendations.reduce((sum, r) => sum + r.estimatedEnergyReductionKwh, 0);
+  const rawInr = recommendations.reduce((sum, r) => sum + r.estimatedMonetaryBenefitInr, 0);
+  const scale = Math.min(1, rawKwh > 0 ? billedUnits / rawKwh : 1,
+    rawInr > 0 ? variableBill / rawInr : 1);
+  if (scale < 1) diagnostics.push('Savings estimates were limited to billed consumption and charges excluding fixed charges. Verify appliance usage before investing.');
+  for (const rec of recommendations) {
+    rec.isWithinBudget = rec.upfrontExpenditureInr <= remainingBudget;
+    if (rec.isWithinBudget) remainingBudget -= rec.upfrontExpenditureInr;
+    rec.estimatedEnergyReductionKwh = Math.floor(rec.estimatedEnergyReductionKwh * scale * 10) / 10;
+    rec.estimatedMonetaryBenefitInr = Math.floor(rec.estimatedMonetaryBenefitInr * scale);
+    if (rec.upfrontExpenditureInr > 0) rec.paybackPeriodMonths = rec.estimatedMonetaryBenefitInr > 0
+      ? Number((rec.upfrontExpenditureInr / rec.estimatedMonetaryBenefitInr).toFixed(1)) : null;
   }
 
   // 8. Compute total potentials across recommendations within budget

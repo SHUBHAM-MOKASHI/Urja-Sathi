@@ -1,3 +1,4 @@
+import { normalizeDate } from './billParser';
 import { BillValidationResult, ElectricityBill } from '../types';
 
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -135,6 +136,10 @@ export function validateBillData(data: {
   // Consumer Number
   if (!data.consumerNumber || data.consumerNumber.trim().length === 0) {
     warnings.push('Consumer Number / CA Number is missing. Adding this helps track historical trends.');
+  }
+
+  for (const [label, value] of [['Bill date', data.billDate], ['Due date', data.dueDate]]) {
+    if (value && !normalizeDate(value)) errors.push(`${label} must be a valid calendar date.`);
   }
 
   // Date Chronology Check

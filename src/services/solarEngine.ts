@@ -92,21 +92,23 @@ export function generateSolarScenarios(
   capacityKw: number,
   netInvestmentInr: number,
   tariffs: SolarTariffAssumptions,
-  userMaintenanceInr?: number
+  userMaintenanceInr?: number,
+  annualDemandKwh = Infinity,
+  annualAvoidableBillInr = Infinity
 ): { conservative: SolarScenario; central: SolarScenario; optimistic: SolarScenario } {
-  const retailRate = tariffs.retailTariffPerKwh || 7.5;
-  const exportRate = tariffs.exportCreditRatePerKwh || 2.75;
+  const retailRate = tariffs.retailTariffPerKwh ?? 7.5;
+  const exportRate = tariffs.exportCreditRatePerKwh ?? 2.75;
 
   // Scenario 1: Conservative (Suboptimal orientation, high dust/monsoon, lower self-consumption)
   const consGenPerKw = 1300; // kWh/kW/year
   const consAnnualGen = Math.round(capacityKw * consGenPerKw);
-  const consSelfRatio = 0.70;
-  const consSelfConsumed = Math.round(consAnnualGen * consSelfRatio);
+  const consSelfConsumed = Math.min(annualDemandKwh, Math.round(consAnnualGen * 0.70));
+  const consSelfRatio = consAnnualGen > 0 ? consSelfConsumed / consAnnualGen : 0;
   const consExported = consAnnualGen - consSelfConsumed;
-  const consBillSavings = Math.round(consSelfConsumed * retailRate);
+  const consBillSavings = Math.min(annualAvoidableBillInr, Math.round(consSelfConsumed * retailRate));
   const consExportCredits = Math.round(consExported * exportRate);
   const consGrossBenefit = consBillSavings + consExportCredits;
-  const consMaintenance = userMaintenanceInr !== undefined && userMaintenanceInr > 0
+  const consMaintenance = userMaintenanceInr !== undefined && Number.isFinite(userMaintenanceInr) && userMaintenanceInr >= 0
     ? userMaintenanceInr
     : Math.max(1500, Math.round(netInvestmentInr * 0.015));
   const consNetBenefit = consGrossBenefit - consMaintenance;
@@ -117,13 +119,13 @@ export function generateSolarScenarios(
   // Scenario 2: Central (Standard CEA Indian benchmark ~4.0 kWh/kW/day, 80% self-consumption)
   const centGenPerKw = 1460; // kWh/kW/year
   const centAnnualGen = Math.round(capacityKw * centGenPerKw);
-  const centSelfRatio = 0.80;
-  const centSelfConsumed = Math.round(centAnnualGen * centSelfRatio);
+  const centSelfConsumed = Math.min(annualDemandKwh, Math.round(centAnnualGen * 0.80));
+  const centSelfRatio = centAnnualGen > 0 ? centSelfConsumed / centAnnualGen : 0;
   const centExported = centAnnualGen - centSelfConsumed;
-  const centBillSavings = Math.round(centSelfConsumed * retailRate);
+  const centBillSavings = Math.min(annualAvoidableBillInr, Math.round(centSelfConsumed * retailRate));
   const centExportCredits = Math.round(centExported * exportRate);
   const centGrossBenefit = centBillSavings + centExportCredits;
-  const centMaintenance = userMaintenanceInr !== undefined && userMaintenanceInr > 0
+  const centMaintenance = userMaintenanceInr !== undefined && Number.isFinite(userMaintenanceInr) && userMaintenanceInr >= 0
     ? userMaintenanceInr
     : Math.max(1000, Math.round(netInvestmentInr * 0.010));
   const centNetBenefit = centGrossBenefit - centMaintenance;
@@ -134,13 +136,13 @@ export function generateSolarScenarios(
   // Scenario 3: Optimistic (High-insolation sunny region, 90% self-consumption, minimal maintenance)
   const optGenPerKw = 1550; // kWh/kW/year
   const optAnnualGen = Math.round(capacityKw * optGenPerKw);
-  const optSelfRatio = 0.90;
-  const optSelfConsumed = Math.round(optAnnualGen * optSelfRatio);
+  const optSelfConsumed = Math.min(annualDemandKwh, Math.round(optAnnualGen * 0.90));
+  const optSelfRatio = optAnnualGen > 0 ? optSelfConsumed / optAnnualGen : 0;
   const optExported = optAnnualGen - optSelfConsumed;
-  const optBillSavings = Math.round(optSelfConsumed * retailRate);
+  const optBillSavings = Math.min(annualAvoidableBillInr, Math.round(optSelfConsumed * retailRate));
   const optExportCredits = Math.round(optExported * exportRate);
   const optGrossBenefit = optBillSavings + optExportCredits;
-  const optMaintenance = userMaintenanceInr !== undefined && userMaintenanceInr > 0
+  const optMaintenance = userMaintenanceInr !== undefined && Number.isFinite(userMaintenanceInr) && userMaintenanceInr >= 0
     ? userMaintenanceInr
     : Math.max(800, Math.round(netInvestmentInr * 0.007));
   const optNetBenefit = optGrossBenefit - optMaintenance;
@@ -149,10 +151,10 @@ export function generateSolarScenarios(
     : null;
 
   // 25-Year Lifecycle Accumulation (with respective degradation)
-  const calculate25YearLifecycle = (annualNet: number, degradationRate: number) => {
+  const calculate25YearLifecycle = (annualGross: number, maintenance: number, degradationRate: number) => {
     let cumulative = -netInvestmentInr;
     for (let yr = 1; yr <= 25; yr++) {
-      const degradedBenefit = annualNet * Math.pow(1 - degradationRate, yr - 1);
+      const degradedBenefit = annualGross * Math.pow(1 - degradationRate, yr - 1) - maintenance;
       cumulative += degradedBenefit;
     }
     return Math.round(cumulative);
@@ -173,11 +175,11 @@ export function generateSolarScenarios(
       annualMaintenanceInr: consMaintenance,
       annualNetBenefitInr: consNetBenefit,
       simplePaybackYears: consPayback,
-      twentyFiveYearCumulativeSavingsInr: calculate25YearLifecycle(consNetBenefit, 0.010),
+      twentyFiveYearCumulativeSavingsInr: calculate25YearLifecycle(consGrossBenefit, consMaintenance, 0.010),
       degradationRatePercent: 1.0,
       assumptions: [
         `Generation yield: ${consGenPerKw} kWh/kW/yr (~3.56 kWh/day/kW)`,
-        `70% self-consumed @ ₹${retailRate}/unit, 30% exported @ ₹${exportRate}/unit`,
+        `${(consSelfRatio * 100).toFixed(1)}% self-consumed (limited by household demand) @ ₹${retailRate}/unit, ${((1 - consSelfRatio) * 100).toFixed(1)}% exported @ ₹${exportRate}/unit`,
         `Annual maintenance & cleaning: ₹${consMaintenance}/yr`,
         `Module annual degradation: 1.0%/yr`,
       ],
@@ -196,11 +198,11 @@ export function generateSolarScenarios(
       annualMaintenanceInr: centMaintenance,
       annualNetBenefitInr: centNetBenefit,
       simplePaybackYears: centPayback,
-      twentyFiveYearCumulativeSavingsInr: calculate25YearLifecycle(centNetBenefit, 0.007),
+      twentyFiveYearCumulativeSavingsInr: calculate25YearLifecycle(centGrossBenefit, centMaintenance, 0.007),
       degradationRatePercent: 0.7,
       assumptions: [
         `Generation yield: ${centGenPerKw} kWh/kW/yr (~4.0 kWh/day/kW - National Benchmark)`,
-        `80% self-consumed @ ₹${retailRate}/unit, 20% exported @ ₹${exportRate}/unit`,
+        `${(centSelfRatio * 100).toFixed(1)}% self-consumed (limited by household demand) @ ₹${retailRate}/unit, ${((1 - centSelfRatio) * 100).toFixed(1)}% exported @ ₹${exportRate}/unit`,
         `Annual maintenance & cleaning: ₹${centMaintenance}/yr`,
         `Module annual degradation: 0.7%/yr`,
       ],
@@ -219,11 +221,11 @@ export function generateSolarScenarios(
       annualMaintenanceInr: optMaintenance,
       annualNetBenefitInr: optNetBenefit,
       simplePaybackYears: optPayback,
-      twentyFiveYearCumulativeSavingsInr: calculate25YearLifecycle(optNetBenefit, 0.005),
+      twentyFiveYearCumulativeSavingsInr: calculate25YearLifecycle(optGrossBenefit, optMaintenance, 0.005),
       degradationRatePercent: 0.5,
       assumptions: [
         `Generation yield: ${optGenPerKw} kWh/kW/yr (~4.25 kWh/day/kW - High Insolation)`,
-        `90% self-consumed @ ₹${retailRate}/unit, 10% exported @ ₹${exportRate}/unit`,
+        `${(optSelfRatio * 100).toFixed(1)}% self-consumed (limited by household demand) @ ₹${retailRate}/unit, ${((1 - optSelfRatio) * 100).toFixed(1)}% exported @ ₹${exportRate}/unit`,
         `Annual maintenance & cleaning: ₹${optMaintenance}/yr`,
         `Module annual degradation: 0.5%/yr`,
       ],
@@ -246,14 +248,15 @@ export function runSolarFeasibilityEngine(input: SolarEngineInput): SolarEngineR
     : 0;
   const roofOwnership = input.roofOwnership || 'owned_individual';
 
+  const fixedCharges = input.tariffAssumptions?.fixedChargesMonthlyInr ?? DEFAULT_SOLAR_TARIFF.fixedChargesMonthlyInr;
   // Configured tariffs with fallbacks
   const tariffs: SolarTariffAssumptions = {
     retailTariffPerKwh:
-      input.tariffAssumptions?.retailTariffPerKwh ||
-      (monthlyUnits > 0 && monthlyBill > 0 ? Number((monthlyBill / monthlyUnits).toFixed(2)) : DEFAULT_SOLAR_TARIFF.retailTariffPerKwh),
-    marginalTariffPerKwh: input.tariffAssumptions?.marginalTariffPerKwh || DEFAULT_SOLAR_TARIFF.marginalTariffPerKwh,
-    fixedChargesMonthlyInr: input.tariffAssumptions?.fixedChargesMonthlyInr || DEFAULT_SOLAR_TARIFF.fixedChargesMonthlyInr,
-    exportCreditRatePerKwh: input.tariffAssumptions?.exportCreditRatePerKwh || DEFAULT_SOLAR_TARIFF.exportCreditRatePerKwh,
+      input.tariffAssumptions?.retailTariffPerKwh ??
+      (monthlyUnits > 0 ? Math.max(0, monthlyBill - fixedCharges) / monthlyUnits : DEFAULT_SOLAR_TARIFF.retailTariffPerKwh),
+    marginalTariffPerKwh: input.tariffAssumptions?.marginalTariffPerKwh ?? DEFAULT_SOLAR_TARIFF.marginalTariffPerKwh,
+    fixedChargesMonthlyInr: input.tariffAssumptions?.fixedChargesMonthlyInr ?? DEFAULT_SOLAR_TARIFF.fixedChargesMonthlyInr,
+    exportCreditRatePerKwh: input.tariffAssumptions?.exportCreditRatePerKwh ?? DEFAULT_SOLAR_TARIFF.exportCreditRatePerKwh,
     discomName: input.tariffAssumptions?.discomName || DEFAULT_SOLAR_TARIFF.discomName,
   };
 
@@ -261,14 +264,9 @@ export function runSolarFeasibilityEngine(input: SolarEngineInput): SolarEngineR
   const maxKwFromRoof = Math.max(0, Math.floor(usableArea / 100)); // 100 sq ft per kW
   const neededKwFromLoad = Math.max(1, Math.ceil(monthlyUnits / 120)); // ~120 kWh/mo per kW
 
-  let recommendedCapacityKw = input.proposedSolarCapacityKw && input.proposedSolarCapacityKw > 0
-    ? input.proposedSolarCapacityKw
-    : Math.min(Math.max(1, neededKwFromLoad), Math.max(1, maxKwFromRoof || 1));
-
-  // If roof area allows less than 1 kW
-  if (usableArea < 80 && !input.hasExistingInstallation) {
-    recommendedCapacityKw = 0;
-  }
+  const proposedCapacity = Number.isFinite(input.proposedSolarCapacityKw) && (input.proposedSolarCapacityKw ?? 0) > 0
+    ? input.proposedSolarCapacityKw! : neededKwFromLoad;
+  const recommendedCapacityKw = Math.min(proposedCapacity, maxKwFromRoof);
 
   // 2. Investment Outlay & Financial Assistance
   const benchmarkCostPerKw = getBenchmarkSolarCostPerKw(recommendedCapacityKw);
@@ -277,7 +275,10 @@ export function runSolarFeasibilityEngine(input: SolarEngineInput): SolarEngineR
     : recommendedCapacityKw * benchmarkCostPerKw;
 
   // Subsidies: Never promise approval. If user verified, use it; otherwise compute official benchmark eligibility.
-  const eligibleSubsidy = calculateCentralSubsidy(recommendedCapacityKw);
+  // Interpolate the existing benchmark tiers instead of rounding fractional kW upward.
+  const lowerKw = Math.floor(recommendedCapacityKw);
+  const eligibleSubsidy = calculateCentralSubsidy(lowerKw) +
+    (recommendedCapacityKw - lowerKw) * (calculateCentralSubsidy(lowerKw + 1) - calculateCentralSubsidy(lowerKw));
   const financialAssistanceInr = input.applicableFinancialAssistanceInr !== undefined && input.applicableFinancialAssistanceInr >= 0
     ? input.applicableFinancialAssistanceInr
     : eligibleSubsidy;
@@ -289,7 +290,9 @@ export function runSolarFeasibilityEngine(input: SolarEngineInput): SolarEngineR
     recommendedCapacityKw,
     netInvestmentCostInr,
     tariffs,
-    input.annualMaintenanceExpenditureInr
+    input.annualMaintenanceExpenditureInr,
+    monthlyUnits * 12,
+    Math.max(0, monthlyBill - fixedCharges) * 12
   );
 
   // 4. Missing Information Audit
@@ -352,9 +355,10 @@ export function runSolarFeasibilityEngine(input: SolarEngineInput): SolarEngineR
     roofOwnership === 'tenant' ||
     roofOwnership === 'no_roof' ||
     roofOwnership === 'shared_apartment' ||
-    usableArea < 80 ||
+    usableArea < 100 ||
     monthlyUnits < 80 ||
-    scenarios.central.annualNetBenefitInr <= 0
+    scenarios.central.annualNetBenefitInr <= 0 ||
+    scenarios.central.twentyFiveYearCumulativeSavingsInr <= 0
   ) {
     decision = 'save_without_solar';
     decisionTitle = 'Energy Conservation First (Save Without Solar)';
@@ -372,14 +376,14 @@ export function runSolarFeasibilityEngine(input: SolarEngineInput): SolarEngineR
         'Submit a proposal to your Apartment Association for common-area solar installation (lift, water pumps, corridor lighting).',
         'Adopt in-home efficiency retrofits to stay beneath expensive telescopic billing tiers.'
       );
-    } else if (usableArea < 80) {
-      decisionRationale = `Your usable roof area (${usableArea} sq ft) is below the minimum 80-100 sq ft threshold required for a standard 1 kW array and maintenance walkways.`;
+    } else if (usableArea < 100) {
+      decisionRationale = `Your usable roof area (${usableArea} sq ft) is below the minimum 100 sq ft threshold required for a standard 1 kW array and maintenance walkways.`;
       suggestedNextSteps.push(
         'Prioritize energy efficiency upgrades in the URJA SAATHI Savings Planner.',
         'Explore balcony solar micro-inverter setups if local DISCOM regulations permit plug-in modules.'
       );
     } else {
-      decisionRationale = `Your monthly electricity consumption (${monthlyUnits} kWh) is too low to economically justify solar capital expenditure. Mandatory grid connection fees and maintenance exceed the generated benefit.`;
+      decisionRationale = `At your stated consumption (${monthlyUnits} kWh/month), the modeled installation does not recover its cost within 25 years, or consumption is below the screening threshold. Review capacity, quotation, maintenance and export compensation before investing.`;
       suggestedNextSteps.push(
         'Maintain low consumption through good usage habits. Solar installation is not economically necessary at this consumption level.'
       );

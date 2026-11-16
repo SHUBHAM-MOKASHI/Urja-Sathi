@@ -23,6 +23,11 @@ export interface ElectricityBill {
   tariffRatePerUnit: number;
   fixedCharges: number;
   surcharges: number;
+  // Numeric placeholders remain for legacy consumers; unknown is never a real zero charge.
+  chargeStatus?: { fixedCharges: 'unknown' | 'confirmed' | 'estimated'; surcharges: 'unknown' | 'confirmed' | 'estimated' };
+  dueDateStatus?: 'unknown' | 'confirmed';
+  reviewedAt?: string;
+  extractionEvidence?: ParsedBillData;
   dueDate: string;
   billDate: string;
   billingPeriod?: string;
@@ -48,6 +53,8 @@ export interface FieldExtractionResult<T> {
   confidence: number; // 0 - 100
   rawMatch?: string;
   isManual?: boolean;
+  candidates?: { value: T; rawMatch: string; priority: number; corrected?: boolean }[];
+  ambiguous?: boolean;
 }
 
 export interface ParsedBillData {

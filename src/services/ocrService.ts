@@ -170,73 +170,39 @@ export async function preprocessImage(
  */
 export async function runOcrRecognition(
   imageSource: HTMLCanvasElement | string | File,
-  onProgress?: (progress: OcrProgress) => void
+  onProgress?: (progress: OcrProgress) => void,
+  signal?: AbortSignal
 ): Promise<OcrResult> {
   let worker: Worker | null = null;
-  try {
-    if (onProgress) {
-      onProgress({ status: 'Initializing OCR engine...', progress: 0.1 });
-    }
-
-    // Dynamic import to prevent loading Tesseract.js bundle on initial app visit
+  let termination: Promise<unknown> | undefined;
+  const abortError = () => new DOMException('OCR cancelled', 'AbortError');
+  const check = () => { if (signal?.aborted) throw abortError(); };
+  const terminate = () => {
+    if (worker && !termination) termination = Promise.resolve(worker.terminate()).catch(() => {});
+    return termination;
+  };
+  const report = (progress: OcrProgress) => { if (!signal?.aborted) onProgress?.(progress); };
+  let abort!: () => void;
+  const cancelled = new Promise<never>((_, reject) => {
+    abort = () => { void terminate(); reject(abortError()); };
+  });
+  check();
+  signal?.addEventListener('abort', abort, {once:true});
+  const operation = async (): Promise<OcrResult> => {
+    report({status:'Initializing OCR engine...', progress:0.1});
     const { createWorker } = await import('tesseract.js');
-
+    check();
     worker = await createWorker('eng', 1, {
-      logger: (m) => {
-        if (onProgress && m.status) {
-          const statusText =
-            m.status === 'recognizing text'
-              ? 'Analyzing characters & numbers...'
-              : m.status === 'loading language traineddata'
-              ? 'Loading language models...'
-              : m.status;
-          onProgress({ status: statusText, progress: Math.min(0.95, m.progress || 0.2) });
-        }
-      },
+      logger: m => report({status:m.status || 'Recognizing text...', progress:Math.min(0.95,m.progress || 0.2)}),
     });
-
-    if (onProgress) {
-      onProgress({ status: 'Recognizing text...', progress: 0.5 });
-    }
-
+    // Tesseract does not expose its worker until initialization resolves.
+    if (signal?.aborted) { await terminate(); throw abortError(); }
     const ret = await worker.recognize(imageSource);
-
-    const lines: { text: string; confidence: number }[] = [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rawLines = (ret.data as any)?.lines;
-    if (Array.isArray(rawLines)) {
-      for (const line of rawLines) {
-        if (line && line.text && line.text.trim()) {
-          lines.push({
-            text: line.text.trim(),
-            confidence: Math.round(line.confidence || 0),
-          });
-        }
-      }
-    } else if (ret.data.text) {
-      for (const l of ret.data.text.split('\n')) {
-        if (l.trim()) {
-          lines.push({ text: l.trim(), confidence: Math.round(ret.data.confidence || 0) });
-        }
-      }
-    }
-
-    if (onProgress) {
-      onProgress({ status: 'Completed', progress: 1.0 });
-    }
-
-    return {
-      text: ret.data.text || '',
-      confidence: Math.round(ret.data.confidence || 0),
-      lines,
-    };
-  } finally {
-    if (worker) {
-      try {
-        await worker.terminate();
-      } catch {
-        // Ignored
-      }
-    }
-  }
+    check();
+    report({status:'Completed',progress:1});
+    return {text:ret.data.text || '', confidence:Math.round(ret.data.confidence || 0),
+      lines:(ret.data.text || '').split('\n').filter(l=>l.trim()).map(text=>({text:text.trim(),confidence:Math.round(ret.data.confidence || 0)}))};
+  };
+  try { return await Promise.race([operation(), cancelled]); }
+  finally { signal?.removeEventListener('abort',abort); await terminate(); }
 }

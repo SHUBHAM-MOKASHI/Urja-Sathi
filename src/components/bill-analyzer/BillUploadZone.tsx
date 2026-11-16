@@ -4,7 +4,7 @@ import { validateBillFile, validateBillFileSignature } from '../../services/bill
 import { SAMPLE_BILLS, createSampleBillFile, SampleBillOption } from '../../data/sampleBillImages';
 
 interface BillUploadZoneProps {
-  onFileSelected: (file: File) => void;
+  onFileSelected: (file: File, source?: 'ocr_scan' | 'sample') => void;
   isLoadingSample?: boolean;
 }
 
@@ -32,7 +32,7 @@ export const BillUploadZone: React.FC<BillUploadZoneProps> = ({
         setValidationError(sigValidation.error || 'Invalid file binary header signature.');
         return;
       }
-      onFileSelected(file);
+      onFileSelected(file, 'ocr_scan');
     } finally {
       setIsValidatingSignature(false);
     }
@@ -64,7 +64,7 @@ export const BillUploadZone: React.FC<BillUploadZoneProps> = ({
   const handleSelectSample = async (sample: SampleBillOption) => {
     setValidationError(null);
     const file = await createSampleBillFile(sample);
-    onFileSelected(file);
+    onFileSelected(file, 'sample');
   };
 
   return (

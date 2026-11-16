@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   CheckCircle,
   AlertTriangle,
@@ -9,25 +9,25 @@ import {
   Gauge,
   CreditCard,
   Zap,
-  Info,
 } from 'lucide-react';
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
 import { Card } from '../common/Card';
 import { ParsedBillData, ElectricityBill } from '../../types';
 import { validateBillData, checkDuplicateBill } from '../../services/billValidation';
-import { calculateSlabBreakdown } from '../../utils/energyCalculations';
 import { dbService } from '../../services/db';
 
 interface BillReviewFormProps {
   parsedData: ParsedBillData;
   billImagePreviewUrl?: string;
-  onConfirmSave: (bill: ElectricityBill, syncToProfile?: boolean) => void;
+  source?: ElectricityBill['source'];
+  onConfirmSave: (bill: ElectricityBill, syncToProfile?: boolean) => void | Promise<void>;
   onCancel: () => void;
 }
 
 export const BillReviewForm: React.FC<BillReviewFormProps> = ({
   parsedData,
+  source = 'ocr_scan',
   billImagePreviewUrl,
   onConfirmSave,
   onCancel,
@@ -49,11 +49,10 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
     parsedData.currentReading.value !== null ? parsedData.currentReading.value : ''
   );
   const [billDate, setBillDate] = useState<string>(
-    parsedData.billDate.value || new Date().toISOString().split('T')[0]
+    parsedData.billDate.value || ''
   );
   const [dueDate, setDueDate] = useState<string>(
-    parsedData.dueDate.value ||
-      new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0]
+    parsedData.dueDate.value || ''
   );
 
   const [existingBills, setExistingBills] = useState<ElectricityBill[]>([]);
@@ -61,6 +60,14 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
   const [allowDuplicateSave, setAllowDuplicateSave] = useState<boolean>(false);
   const [syncToProfile, setSyncToProfile] = useState<boolean>(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const savingRef = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [ambiguityConfirmed, setAmbiguityConfirmed] = useState(false);
+  const validationWarnings = validateBillData({consumerNumber, totalAmount: totalAmount === '' ? null : totalAmount,
+    unitsConsumed: unitsConsumed === '' ? null : unitsConsumed, billDate, dueDate,
+    previousReading: previousReading === '' ? null : previousReading,
+    currentReading: currentReading === '' ? null : currentReading}).warnings;
+  const ambiguousFields = Object.entries(parsedData).filter(([, value]) => value && typeof value === 'object' && 'ambiguous' in value && value.ambiguous);
   const [showRawOcr, setShowRawOcr] = useState<boolean>(false);
 
   // Load existing bills to evaluate duplicates
@@ -91,10 +98,6 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
     }
   }, [consumerNumber, billDate, billingPeriod, unitsConsumed, totalAmount, existingBills]);
 
-  // Live slab calculation for the review panel
-  const unitsNum = typeof unitsConsumed === 'number' ? unitsConsumed : 0;
-  const slabResult = calculateSlabBreakdown(unitsNum > 0 ? unitsNum : 100);
-
   const getConfidenceBadge = (confidence: number, hasValue: boolean) => {
     if (!hasValue || confidence === 0) {
       return (
@@ -106,19 +109,24 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
     if (confidence >= 80) {
       return (
         <Badge variant="emerald" size="sm">
-          {confidence}% High Confidence
+          {confidence}/100 heuristic
         </Badge>
       );
     }
     return (
       <Badge variant="amber" size="sm">
-        {confidence}% Check & Verify
+        {confidence}/100 — verify
       </Badge>
     );
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingRef.current) return;
+    if (!billDate || (ambiguousFields.length > 0 && !ambiguityConfirmed) || (duplicateWarning && !allowDuplicateSave)) {
+      setValidationErrors(['Enter the actual bill date and explicitly confirm any ambiguous values or duplicate before saving.']);
+      return;
+    }
 
     const validation = validateBillData({
       consumerNumber,
@@ -138,6 +146,7 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
 
     setValidationErrors([]);
 
+
     const finalBill: ElectricityBill = {
       id: `bill_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       billMonth: billingPeriod || `Bill for ${billDate}`,
@@ -146,24 +155,32 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
       unitsConsumed: Number(unitsConsumed),
       totalAmount: Number(totalAmount),
       tariffRatePerUnit: Number((Number(totalAmount) / (Number(unitsConsumed) || 1)).toFixed(2)),
-      fixedCharges: slabResult.fixedCharges,
-      surcharges: slabResult.electricityDuty,
+      fixedCharges: 0,
+      surcharges: 0,
+      chargeStatus: { fixedCharges: 'unknown', surcharges: 'unknown' },
+      dueDateStatus: dueDate ? 'confirmed' : 'unknown',
+      reviewedAt: new Date().toISOString(),
+      extractionEvidence: parsedData,
       billDate,
-      dueDate,
+      dueDate: dueDate || 'Not provided',
       billingPeriod,
       previousReading: typeof previousReading === 'number' ? previousReading : undefined,
       currentReading: typeof currentReading === 'number' ? currentReading : undefined,
       isPeakSeason: false,
-      source: 'ocr_scan',
+      source,
       ocrConfidence: parsedData.overallConfidence,
       rawOcrText: parsedData.normalizedText,
       isDuplicate: !!duplicateWarning,
-      userEdited: true,
-      slabBreakdown: slabResult.breakdown,
+      userEdited: Object.entries({consumerName,consumerNumber,totalAmount,unitsConsumed,billingPeriod,previousReading,currentReading,billDate,dueDate})
+        .some(([key,value]) => value !== ((parsedData[key as keyof ParsedBillData] as {value: unknown}).value ?? '')),
       createdAt: new Date().toISOString(),
     };
 
-    onConfirmSave(finalBill, syncToProfile);
+    savingRef.current = true;
+    setIsSaving(true);
+    try { await onConfirmSave(finalBill, syncToProfile); }
+    catch { setValidationErrors(['Could not save this bill. Please retry.']); }
+    finally { savingRef.current = false; setIsSaving(false); }
   };
 
   return (
@@ -176,7 +193,7 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
               Verify & Confirm Extracted Bill Data
             </h2>
             <Badge variant="emerald" size="sm">
-              OCR: {parsedData.overallConfidence}% Match
+              Extraction score: {parsedData.overallConfidence}/100 (heuristic)
             </Badge>
           </div>
           <p className="text-xs text-slate-500 mt-1">
@@ -194,6 +211,15 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
         </button>
       </div>
 
+      <div className="p-4 bg-amber-50 rounded-xl text-sm space-y-2">
+        <p>Human review is required. Scores are heuristics, not measured accuracy. Source: {source === 'sample' ? 'Demonstration bill' : source === 'manual' ? 'Manual entry' : 'Uploaded bill'}.</p>
+        {[...parsedData.warnings, ...validationWarnings].map((warning, i) => <p key={i}>{warning}</p>)}
+        {ambiguousFields.map(([name, field]) => <div key={name}>
+          <strong>{name}: ambiguous candidates</strong>
+          <ul>{(field as ParsedBillData['totalAmount']).candidates?.map((candidate,i) => <li key={i}>{candidate.rawMatch} → {String(candidate.value)}</li>)}</ul>
+        </div>)}
+        {ambiguousFields.length > 0 && <label><input type="checkbox" checked={ambiguityConfirmed} onChange={e=>setAmbiguityConfirmed(e.target.checked)} /> I checked the competing candidates against the bill and entered the correct values below.</label>}
+      </div>
       {/* Raw OCR Text Modal / Drawer */}
       {showRawOcr && (
         <div className="p-4 bg-slate-900 text-emerald-400 font-mono text-xs rounded-2xl max-h-56 overflow-auto border border-slate-800 space-y-1">
@@ -244,21 +270,6 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
       )}
 
       {/* Parser Heuristic Warnings */}
-      {parsedData.warnings.length > 0 && (
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-1 text-xs text-slate-700">
-          <p className="font-bold text-slate-800 flex items-center gap-1.5">
-            <Info className="w-4 h-4 text-slate-500" />
-            Extraction Observations:
-          </p>
-          <ul className="list-disc list-inside space-y-0.5 text-slate-600">
-            {parsedData.warnings.map((w, idx) => (
-              <li key={idx}>{w}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Two Column Layout: Bill Image on Left, Editable Fields on Right */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Image Reference */}
         {billImagePreviewUrl && (
@@ -295,7 +306,7 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-500">₹</span>
                   <input
                     type="number"
-                    step="1"
+                    step="any"
                     required
                     value={totalAmount}
                     onChange={(e) =>
@@ -319,7 +330,7 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    step="1"
+                    step="any"
                     required
                     value={unitsConsumed}
                     onChange={(e) =>
@@ -450,7 +461,6 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
                 </div>
                 <input
                   type="date"
-                  required
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -475,18 +485,9 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
               </div>
             </div>
 
-            {/* Instant Slab Insight Preview */}
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs space-y-2">
-              <span className="font-bold text-slate-800">Telescopic Slab Projection:</span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                {slabResult.breakdown.map((s, idx) => (
-                  <div key={idx} className="bg-white p-2 rounded-lg border border-slate-200">
-                    <p className="text-[11px] text-slate-500 font-medium truncate">{s.slabName.split('(')[0]}</p>
-                    <p className="font-bold text-emerald-800">{s.units} units</p>
-                    <p className="text-[10px] text-slate-400">₹{s.amount}</p>
-                  </div>
-                ))}
-              </div>
+            <div className="p-4 bg-slate-50 rounded-xl text-sm">
+              Fixed charges: Not extracted. Surcharges: Not extracted. No tariff breakdown is inferred from consumption.
+              The separate Slab Calculator provides illustrative estimates only.
             </div>
           </Card>
 
@@ -517,7 +518,7 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
               type="submit"
               variant="primary"
               size="lg"
-              disabled={!!duplicateWarning && !allowDuplicateSave}
+              disabled={isSaving || (!!duplicateWarning && !allowDuplicateSave) || (ambiguousFields.length > 0 && !ambiguityConfirmed)}
               className="w-full sm:w-auto shadow-md"
               icon={<CheckCircle className="w-5 h-5" />}
             >

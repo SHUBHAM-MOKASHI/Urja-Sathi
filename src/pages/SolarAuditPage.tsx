@@ -9,7 +9,7 @@ import { runSolarFeasibilityEngine } from '../services/solarEngine';
 import { storageService } from '../services/storageService';
 import { dbService } from '../services/db';
 import { syncService } from '../services/syncService';
-import { formatCurrency, formatKwh, formatDate } from '../utils/formatters';
+import { formatCurrency, formatKwh, formatDate, formatSavedSolarPayback } from '../utils/formatters';
 import { useNotification } from '../context/NotificationContext';
 import { useApp } from '../context/AppContext';
 import { RoofOwnershipType, SolarAssessment } from '../types';
@@ -700,7 +700,7 @@ export const SolarAuditPage: React.FC = () => {
                   </div>
                 </div>
                 <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-100">
-                  1,300 kWh/kW/yr • 70% self-consumed • 1.0% annual degradation
+                  1,300 kWh/kW/yr • {(solarResult.scenarios.conservative.selfConsumptionRatio * 100).toFixed(1)}% self-consumed • 1.0% annual degradation
                 </p>
               </div>
 
@@ -736,7 +736,7 @@ export const SolarAuditPage: React.FC = () => {
                   </div>
                 </div>
                 <p className="text-[11px] text-emerald-700 pt-2 border-t border-emerald-200">
-                  1,460 kWh/kW/yr • 80% self-consumed • 0.7% annual degradation
+                  1,460 kWh/kW/yr • {(solarResult.scenarios.central.selfConsumptionRatio * 100).toFixed(1)}% self-consumed • 0.7% annual degradation
                 </p>
               </div>
 
@@ -769,7 +769,7 @@ export const SolarAuditPage: React.FC = () => {
                   </div>
                 </div>
                 <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-100">
-                  1,550 kWh/kW/yr • 90% self-consumed • 0.5% annual degradation
+                  1,550 kWh/kW/yr • {(solarResult.scenarios.optimistic.selfConsumptionRatio * 100).toFixed(1)}% self-consumed • 0.5% annual degradation
                 </p>
               </div>
             </div>
@@ -982,7 +982,7 @@ export const SolarAuditPage: React.FC = () => {
                     </div>
                     <div>
                       <span className="text-slate-400 block">Payback:</span>
-                      <span className="font-semibold text-amber-700">{a.paybackPeriodYears} Years</span>
+                      <span className="font-semibold text-amber-700">{formatSavedSolarPayback(a.paybackPeriodYears, a.annualSavingsInr)}</span>
                     </div>
                   </div>
 
