@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 interface SlabItem {
@@ -15,12 +15,14 @@ interface SlabBreakdownChartProps {
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'];
 
 export const SlabBreakdownChart: React.FC<SlabBreakdownChartProps> = ({ slabs }) => {
-  const data = slabs.map((s) => ({
-    name: s.slabName.split('(')[0].trim(),
-    value: s.units,
-    amount: s.amount,
-    rate: s.rate,
-  }));
+  const data = useMemo(() => {
+    return slabs.map((s) => ({
+      name: s.slabName.split('(')[0].trim(),
+      value: s.units,
+      amount: s.amount,
+      rate: s.rate,
+    }));
+  }, [slabs]);
 
   return (
     <div className="w-full h-64">

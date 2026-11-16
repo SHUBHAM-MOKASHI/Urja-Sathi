@@ -54,6 +54,14 @@ export const WorkerCard: React.FC<WorkerCardProps> = ({
   };
 
   const getVerificationBadge = () => {
+    if (worker.isDemoProfile) {
+      return (
+        <Badge variant="amber" size="sm" icon={<AlertCircle className="h-3 w-3" />}>
+          Simulated Credential — Demonstration Only
+        </Badge>
+      );
+    }
+
     switch (worker.verificationStatus) {
       case 'verified_licensed':
         return (
@@ -70,7 +78,7 @@ export const WorkerCard: React.FC<WorkerCardProps> = ({
       case 'self_declared_only':
         return (
           <Badge variant="slate" size="sm">
-            Non-Technical Guide
+            Non-Technical Guide (Self-Declared)
           </Badge>
         );
     }
@@ -118,19 +126,42 @@ export const WorkerCard: React.FC<WorkerCardProps> = ({
           </div>
         </div>
 
-        {/* Independently Verified Qualification Callout */}
+        {/* Qualification Callout (Distinguishing Real vs Simulated Credentials) */}
         {worker.verifiedQualifications.length > 0 ? (
-          <div className="p-2.5 rounded-xl bg-emerald-50/50 border border-emerald-100 text-xs space-y-1">
-            <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1">
-              <FileBadge className="h-3.5 w-3.5 text-emerald-700" />
-              Independently Verified Credential:
+          <div
+            className={`p-2.5 rounded-xl text-xs space-y-1 ${
+              worker.isDemoProfile
+                ? 'bg-amber-50/60 border border-amber-200'
+                : 'bg-emerald-50/50 border border-emerald-100'
+            }`}
+          >
+            <span
+              className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
+                worker.isDemoProfile ? 'text-amber-900' : 'text-emerald-900'
+              }`}
+            >
+              <FileBadge
+                className={`h-3.5 w-3.5 ${
+                  worker.isDemoProfile ? 'text-amber-700' : 'text-emerald-700'
+                }`}
+              />
+              {worker.isDemoProfile
+                ? 'Simulated Credential — Demonstration Only:'
+                : 'Independently Verified Credential:'}
             </span>
             <div className="font-semibold text-slate-800">
               {worker.verifiedQualifications[0].certificateName}
             </div>
             <div className="text-[10px] text-slate-500 truncate">
-              Lic #{worker.verifiedQualifications[0].certificateNumber} • {worker.verifiedQualifications[0].issuingAuthority}
+              {worker.isDemoProfile ? 'Sample ID #' : 'Lic #'}
+              {worker.verifiedQualifications[0].certificateNumber} •{' '}
+              {worker.verifiedQualifications[0].issuingAuthority}
             </div>
+            {worker.isDemoProfile && (
+              <div className="text-[9px] text-amber-700 italic">
+                * Simulated demo profile for interface evaluation; not a live registered license.
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 text-xs text-slate-600 space-y-0.5">

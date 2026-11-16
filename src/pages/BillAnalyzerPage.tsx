@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/common/C
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { Loader } from '../components/common/Loader';
+import { Tabs } from '../components/common/Tabs';
 import { SlabBreakdownChart } from '../components/charts/SlabBreakdownChart';
 import { calculateSlabBreakdown } from '../utils/energyCalculations';
 import { formatCurrency, formatKwh, formatDate } from '../utils/formatters';
@@ -28,6 +29,8 @@ import {
   Trash2,
   Calendar,
   ShieldCheck,
+  ArrowRight,
+  TrendingUp,
 } from 'lucide-react';
 
 type AnalyzerTab = 'ocr_scan' | 'manual_calc' | 'history';
@@ -156,6 +159,13 @@ export const BillAnalyzerPage: React.FC = () => {
     setOcrStep('upload');
   };
 
+  // Graceful offline fallback: allow manual review if OCR is interrupted
+  const handleProceedToManualReview = () => {
+    const emptyParsed = parseElectricityBill('', 0);
+    setParsedBillData(emptyParsed);
+    setOcrStep('review');
+  };
+
   // Manual Calculator Save
   const handleManualSave = async () => {
     setIsSavingManual(true);
@@ -192,56 +202,50 @@ export const BillAnalyzerPage: React.FC = () => {
   const manualBreakdown = calculateSlabBreakdown(calcUnits);
   const highestManualSlab = manualBreakdown.breakdown[manualBreakdown.breakdown.length - 1];
 
+  const tabsList = [
+    {
+      id: 'ocr_scan',
+      label: 'OCR Bill Scanner',
+      icon: <ScanLine className="w-4 h-4" />,
+    },
+    {
+      id: 'manual_calc',
+      label: 'Slab Calculator',
+      icon: <Sliders className="w-4 h-4" />,
+    },
+    {
+      id: 'history',
+      label: 'Stored Bills',
+      icon: <History className="w-4 h-4" />,
+      badge: savedBills.length > 0 ? savedBills.length : undefined,
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Electricity Bill Analyzer
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Offline client-side OCR bill scanner, telescopic tariff decoder, and bill archive.
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Electricity Bill Analyzer
+            </h1>
+            <Badge variant="emerald" size="sm" icon={<ShieldCheck className="w-3.5 h-3.5" />}>
+              Zero-Cloud OCR
+            </Badge>
+          </div>
+          <p className="text-sm text-slate-500 mt-1 max-w-2xl">
+            Local client-side bill scanner powered by Web Worker OCR, telescopic tariff decomposition, and private offline bill archive.
           </p>
         </div>
 
-        {/* Tab Controls */}
-        <div className="flex bg-slate-100 p-1 rounded-2xl self-start md:self-auto border border-slate-200/80">
-          <button
-            onClick={() => setActiveTab('ocr_scan')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'ocr_scan'
-                ? 'bg-white text-emerald-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <ScanLine className="w-4 h-4 text-emerald-600" />
-            <span>OCR Bill Scanner</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('manual_calc')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'manual_calc'
-                ? 'bg-white text-emerald-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Sliders className="w-4 h-4 text-emerald-600" />
-            <span>Slab Calculator</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'history'
-                ? 'bg-white text-emerald-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <History className="w-4 h-4 text-emerald-600" />
-            <span>Stored Bills ({savedBills.length})</span>
-          </button>
+        {/* Tab Controls using standard Tabs component */}
+        <div className="self-start md:self-auto">
+          <Tabs
+            tabs={tabsList}
+            activeTab={activeTab}
+            onChange={(id) => setActiveTab(id as AnalyzerTab)}
+          />
         </div>
       </div>
 
@@ -271,6 +275,7 @@ export const BillAnalyzerPage: React.FC = () => {
                 if (selectedFile) setOcrStep('preview');
               }}
               onCancel={handleResetOcr}
+              onManualEntry={handleProceedToManualReview}
             />
           )}
 
@@ -287,39 +292,39 @@ export const BillAnalyzerPage: React.FC = () => {
           {/* Step 5: Success & Telescopic Breakdown View */}
           {ocrStep === 'success' && savedBillResult && (
             <div className="space-y-6">
-              <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 sm:p-8 text-center max-w-xl mx-auto space-y-4 shadow-subtle">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 sm:p-8 text-center max-w-2xl mx-auto space-y-5 shadow-subtle">
                 <div className="w-16 h-16 rounded-2xl bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-premium">
                   <CheckCircle className="w-8 h-8" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-extrabold text-emerald-950">
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-emerald-950">
                     Bill Verified & Saved!
                   </h3>
-                  <p className="text-xs text-emerald-800 mt-1">
-                    Saved to local IndexedDB. Your energy consumption profile has been updated.
+                  <p className="text-xs sm:text-sm text-emerald-800 mt-1">
+                    Saved to local IndexedDB. Your household energy baseline and appliance recommendations have been updated.
                   </p>
                 </div>
 
-                <div className="p-4 bg-white/80 rounded-2xl border border-emerald-100 text-xs text-left grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="text-slate-400">Bill Period:</span>
-                    <p className="font-bold text-slate-800">{savedBillResult.billMonth}</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-white/90 rounded-2xl border border-emerald-100 text-left">
+                  <div className="space-y-0.5">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Bill Period</span>
+                    <p className="font-bold text-sm text-slate-900 truncate">{savedBillResult.billMonth}</p>
                   </div>
-                  <div>
-                    <span className="text-slate-400">Total Amount:</span>
-                    <p className="font-bold text-emerald-700">{formatCurrency(savedBillResult.totalAmount)}</p>
+                  <div className="space-y-0.5">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Consumption</span>
+                    <p className="font-extrabold text-base text-emerald-700">{formatKwh(savedBillResult.unitsConsumed)}</p>
                   </div>
-                  <div>
-                    <span className="text-slate-400">Consumption:</span>
-                    <p className="font-bold text-slate-800">{formatKwh(savedBillResult.unitsConsumed)}</p>
+                  <div className="space-y-0.5">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Bill</span>
+                    <p className="font-extrabold text-base text-slate-900">{formatCurrency(savedBillResult.totalAmount)}</p>
                   </div>
-                  <div>
-                    <span className="text-slate-400">Consumer No:</span>
-                    <p className="font-bold text-slate-800">{savedBillResult.consumerNumber}</p>
+                  <div className="space-y-0.5">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Effective Rate</span>
+                    <p className="font-bold text-sm text-slate-700">₹{savedBillResult.tariffRatePerUnit}/kWh</p>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap justify-center gap-3 pt-2">
+                <div className="flex flex-wrap justify-center items-center gap-3 pt-2">
                   <Button variant="ghost" size="sm" onClick={handleResetOcr}>
                     Scan Another Bill
                   </Button>
@@ -327,8 +332,13 @@ export const BillAnalyzerPage: React.FC = () => {
                     View Stored Bills ({savedBills.length})
                   </Button>
                   <Link to="/savings">
-                    <Button variant="primary" size="sm">
-                      Optimize in Savings Planner →
+                    <Button variant="primary" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
+                      Explore Appliance Savings
+                    </Button>
+                  </Link>
+                  <Link to="/solar">
+                    <Button variant="outline" size="sm" icon={<TrendingUp className="w-4 h-4" />}>
+                      Solar Feasibility
                     </Button>
                   </Link>
                 </div>
@@ -338,10 +348,17 @@ export const BillAnalyzerPage: React.FC = () => {
               {savedBillResult.slabBreakdown && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Telescopic Slab Tariff Decomposition</CardTitle>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      How your {formatKwh(savedBillResult.unitsConsumed)} were billed across progressive DISCOM slabs
-                    </p>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <CardTitle>Telescopic Slab Tariff Decomposition</CardTitle>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          How your {formatKwh(savedBillResult.unitsConsumed)} were billed across progressive DISCOM slabs
+                        </p>
+                      </div>
+                      <Badge variant="emerald" size="sm">
+                        Total: {formatCurrency(savedBillResult.totalAmount)}
+                      </Badge>
+                    </div>
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
                     <div className="lg:col-span-5">
@@ -359,7 +376,7 @@ export const BillAnalyzerPage: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {savedBillResult.slabBreakdown.map((s, i) => (
-                            <tr key={i}>
+                            <tr key={i} className="hover:bg-slate-50/50">
                               <td className="py-2.5 px-3 font-medium text-slate-800">{s.slabName}</td>
                               <td className="py-2.5 px-3 text-right text-emerald-700 font-bold">{formatKwh(s.units)}</td>
                               <td className="py-2.5 px-3 text-right text-slate-500">₹{s.rate}</td>

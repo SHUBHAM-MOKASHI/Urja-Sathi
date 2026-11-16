@@ -7,25 +7,27 @@ import {
 import {
   compareQuotations,
   SAMPLE_QUOTATIONS,
-  BENCHMARK_PRICE_PER_WP,
 } from '../services/quotationComparisonService';
 import { dbService } from '../services/db';
 import { QuotationComparisonTable } from '../components/quotation-comparison/QuotationComparisonTable';
+import { VendorComparisonCards } from '../components/quotation-comparison/VendorComparisonCards';
 import { QuotationFormModal } from '../components/quotation-comparison/QuotationFormModal';
 import { QuotationReportModal } from '../components/quotation-comparison/QuotationReportModal';
 import { Button } from '../components/common/Button';
 import { StatCard } from '../components/common/StatCard';
 import { Loader } from '../components/common/Loader';
+import { Badge } from '../components/common/Badge';
 import {
   Plus,
   FileText,
   Sparkles,
   Award,
   AlertCircle,
-  HelpCircle,
   ArrowRight,
   TrendingDown,
   Scale,
+  ShieldCheck,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const QuotationComparisonPage: React.FC = () => {
@@ -124,14 +126,35 @@ export const QuotationComparisonPage: React.FC = () => {
     (q) => q.id === lowestPriceEvaluation?.quotationId
   );
 
+  // Calculate best warranty / hardware evaluation strictly from data
+  const bestWarrantyEvaluation = [...comparisonResult.evaluations].sort((a, b) => {
+    const scoreA = a.scoreCategories.find((c) => c.category.includes('Hardware') || c.category.includes('Warranty'))?.score || 0;
+    const scoreB = b.scoreCategories.find((c) => c.category.includes('Hardware') || c.category.includes('Warranty'))?.score || 0;
+    return scoreB - scoreA;
+  })[0];
+  const bestWarrantyQuote = quotations.find(
+    (q) => q.id === bestWarrantyEvaluation?.quotationId
+  );
+
+  // Total red flags count across all proposals
+  const totalRedFlagsCount = comparisonResult.evaluations.reduce(
+    (acc, e) => acc + (e.redFlags?.length || 0),
+    0
+  );
+
   return (
     <div className="space-y-8 pb-12">
-      {/* Header Banner */}
+      {/* Section A: Header Banner (Compact, Premium SaaS Style) */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-forest-950 via-forest-900 to-forest-800 text-white p-6 sm:p-8 shadow-xl">
         <div className="relative z-10 max-w-4xl space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-semibold uppercase tracking-wider backdrop-blur-sm">
-            <Scale className="h-3.5 w-3.5 text-emerald-400" />
-            Independent Decision Engine • Har Ghar Bachat, Har Haath Kaam
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-semibold uppercase tracking-wider backdrop-blur-sm">
+              <Scale className="h-3.5 w-3.5 text-emerald-400" />
+              Independent Decision Engine • Har Ghar Bachat, Har Haath Kaam
+            </div>
+            <Badge variant="emerald" size="sm">
+              {quotations.length} Active Proposal{quotations.length === 1 ? '' : 's'}
+            </Badge>
           </div>
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight">
             Solar Installer Quotation Comparison
@@ -189,25 +212,18 @@ export const QuotationComparisonPage: React.FC = () => {
         </div>
       </div>
 
-      {/* KPI Stat Cards */}
+      {/* Section B: Comparison Summary KPI Cards */}
       {quotations.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
-            title="Proposals Under Audit"
-            value={quotations.length}
-            subtitle={quotations.length >= 2 ? 'Multi-criteria comparison active' : 'Need at least 2 quotes'}
-            icon={<Scale className="h-5 w-5 text-emerald-600" />}
-          />
-
-          <StatCard
-            title="Top Overall Proposal"
+            title="Best Overall Score"
             value={topScoringQuote ? `${topEvaluation?.overallScore}/100` : '—'}
-            subtitle={topScoringQuote ? topScoringQuote.installerName : 'Add proposals to rank'}
+            subtitle={topScoringQuote ? `${topScoringQuote.installerName} (Rank #1)` : 'Add proposals to rank'}
             icon={<Award className="h-5 w-5 text-emerald-600" />}
           />
 
           <StatCard
-            title="Lowest Upfront Rate"
+            title="Lowest Quoted Price"
             value={lowestPriceEvaluation ? `₹${lowestPriceEvaluation.pricePerWattPeak}/Wp` : '—'}
             subtitle={
               lowestPriceQuote
@@ -218,10 +234,25 @@ export const QuotationComparisonPage: React.FC = () => {
           />
 
           <StatCard
-            title="National Benchmark"
-            value={`₹${BENCHMARK_PRICE_PER_WP}/Wp`}
-            subtitle="MNRE central 3kW benchmark"
-            icon={<HelpCircle className="h-5 w-5 text-slate-500" />}
+            title="Best Hardware & Warranty"
+            value={
+              bestWarrantyEvaluation
+                ? `${bestWarrantyEvaluation.scoreCategories.find((c) => c.category.includes('Hardware'))?.score || 0}/30 pts`
+                : '—'
+            }
+            subtitle={bestWarrantyQuote ? bestWarrantyQuote.installerName : 'Tier-1 & Inverter warranty'}
+            icon={<ShieldCheck className="h-5 w-5 text-sky-600" />}
+          />
+
+          <StatCard
+            title="Important Warnings"
+            value={`${totalRedFlagsCount} Alert${totalRedFlagsCount === 1 ? '' : 's'}`}
+            subtitle={
+              totalRedFlagsCount > 0
+                ? `Identified across ${quotations.length} proposals`
+                : 'No critical red flags found'
+            }
+            icon={<AlertTriangle className="h-5 w-5 text-rose-600" />}
           />
         </div>
       )}
@@ -300,6 +331,14 @@ export const QuotationComparisonPage: React.FC = () => {
             </Button>
           </div>
 
+          <VendorComparisonCards
+            quotations={quotations}
+            evaluations={comparisonResult.evaluations}
+            onEdit={handleEdit}
+            onDelete={handleDeleteQuotation}
+            onSelectForSolarAudit={handleSelectForSolarAudit}
+          />
+
           <QuotationComparisonTable
             quotations={quotations}
             evaluations={comparisonResult.evaluations}
@@ -310,18 +349,84 @@ export const QuotationComparisonPage: React.FC = () => {
         </div>
       ) : (
         /* 2 or more quotations entered -> Full Comparison Mode */
-        <div className="space-y-8">
-          <QuotationComparisonTable
+        <div className="space-y-10">
+          {/* Section C: Vendor Comparison Cards */}
+          <VendorComparisonCards
             quotations={quotations}
             evaluations={comparisonResult.evaluations}
             onEdit={handleEdit}
             onDelete={handleDeleteQuotation}
             onSelectForSolarAudit={handleSelectForSolarAudit}
           />
+
+          {/* Section D & E: Detailed Technical Comparison Table & Mobile Selector */}
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                <FileText className="h-5 w-5 text-emerald-600" />
+                In-Depth Technical & Regulatory Audit Table
+              </h3>
+              <p className="text-xs text-slate-500">
+                Item-by-item verification across Commercials, Hardware, DISCOM Liaisoning, Warranties, and SLAs.
+              </p>
+            </div>
+
+            <QuotationComparisonTable
+              quotations={quotations}
+              evaluations={comparisonResult.evaluations}
+              onEdit={handleEdit}
+              onDelete={handleDeleteQuotation}
+              onSelectForSolarAudit={handleSelectForSolarAudit}
+            />
+          </div>
         </div>
       )}
 
       {/* Integration Callout to Solar Feasibility Assistant */}
+      <div className="bg-gradient-to-r from-slate-900 to-forest-950 text-white rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-md">
+        <div className="space-y-2 max-w-2xl">
+          <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+            Connected Engineering Workflow
+          </span>
+          <h3 className="text-xl sm:text-2xl font-bold tracking-tight">
+            Ready to calculate generation and payback with your confirmed quotation?
+          </h3>
+          <p className="text-xs sm:text-sm text-slate-300">
+            Feed confirmed vendor costs directly into our Solar Feasibility Assistant to model 25-year bill savings,
+            grid export revenue, and sensitivity scenarios.
+          </p>
+        </div>
+        <Button
+          variant="primary"
+          onClick={() => {
+            if (topScoringQuote) {
+              handleSelectForSolarAudit(topScoringQuote);
+            } else {
+              navigate('/solar-audit');
+            }
+          }}
+          icon={<ArrowRight className="h-4 w-4" />}
+          className="shrink-0"
+        >
+          {topScoringQuote ? `Run Feasibility with ${topScoringQuote.installerName}` : 'Open Solar Feasibility'}
+        </Button>
+      </div>
+
+      {/* Quotation Form Modal */}
+      <QuotationFormModal
+        isOpen={isFormOpen}
+        onClose={() => setIsFormOpen(false)}
+        onSave={handleSaveQuotation}
+        initialQuotation={editingQuotation}
+      />
+
+      {/* Printable Report Modal */}
+      <QuotationReportModal
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        quotations={quotations}
+        comparisonResult={comparisonResult}
+      />
       <div className="bg-gradient-to-r from-slate-900 to-forest-950 text-white rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-md">
         <div className="space-y-2 max-w-2xl">
           <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">

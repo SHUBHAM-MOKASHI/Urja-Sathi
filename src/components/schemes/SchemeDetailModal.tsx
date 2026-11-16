@@ -154,6 +154,16 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
     updateAndPersist({ ...userInput, checkedCriteriaIds: updated });
   };
 
+  const handleResetChecklist = () => {
+    if (window.confirm('Reset all checked items in this document and eligibility checklist? This cannot be undone.')) {
+      updateAndPersist({
+        ...userInput,
+        checkedDocumentIds: [],
+        checkedCriteriaIds: [],
+      });
+    }
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -539,13 +549,29 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
               </span>
             </div>
 
-            {/* Document Readiness Bar */}
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-700">Document Readiness Progress:</span>
-                <span className="font-extrabold text-emerald-700 text-sm">
-                  {evaluation.documentReadinessPercent}% Complete
-                </span>
+            {/* Document Readiness Bar & Actions */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div>
+                  <span className="font-bold text-slate-800">Document Readiness Progress:</span>
+                  <span className="text-slate-500 ml-1.5">
+                    ({userInput.checkedDocumentIds?.length || 0} of {scheme.requiredDocuments.length} documents ready)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-emerald-700 text-sm">
+                    {evaluation.documentReadinessPercent}% Complete
+                  </span>
+                  {(userInput.checkedDocumentIds?.length || 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleResetChecklist}
+                      className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 hover:underline px-2 py-0.5 rounded bg-rose-50 border border-rose-200 transition-colors"
+                    >
+                      Reset Checklist
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
                 <div
@@ -567,19 +593,28 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
                   <div
                     key={doc.id}
                     onClick={() => toggleDocument(doc.id)}
-                    className={`p-4 rounded-xl border flex items-start gap-3 cursor-pointer transition-colors ${
+                    onKeyDown={(e) => {
+                      if (e.key === ' ' || e.key === 'Enter') {
+                        e.preventDefault();
+                        toggleDocument(doc.id);
+                      }
+                    }}
+                    role="checkbox"
+                    aria-checked={Boolean(isReady)}
+                    tabIndex={0}
+                    className={`p-4 rounded-xl border flex items-start gap-3 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
                       isReady
                         ? 'bg-emerald-50/60 border-emerald-300'
                         : 'bg-white border-slate-200 hover:bg-slate-50'
                     }`}
                   >
-                    <button type="button" className="mt-0.5">
+                    <span className="mt-0.5 pointer-events-none">
                       {isReady ? (
                         <CheckSquare className="h-5 w-5 text-emerald-600" />
                       ) : (
                         <Square className="h-5 w-5 text-slate-400" />
                       )}
-                    </button>
+                    </span>
 
                     <div className="flex-1 space-y-1.5 text-xs">
                       <div className="flex flex-wrap items-center justify-between gap-1">

@@ -156,14 +156,18 @@ export const BillUploadZone: React.FC<BillUploadZoneProps> = ({
               key={sb.id}
               disabled={isLoadingSample}
               onClick={() => handleSelectSample(sb)}
-              className="p-3.5 bg-white border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 rounded-xl text-left transition-all group disabled:opacity-50"
+              className="p-3.5 bg-white border border-slate-200/90 hover:border-emerald-500 hover:bg-emerald-50/50 rounded-2xl text-left transition-all group disabled:opacity-50 shadow-xs relative"
             >
-              <p className="text-xs font-bold text-slate-800 group-hover:text-emerald-800">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Demo Bill</span>
+                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Test OCR</span>
+              </div>
+              <p className="text-xs font-bold text-slate-800 group-hover:text-emerald-900 truncate">
                 {sb.name}
               </p>
-              <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1.5">
-                <span>{sb.units} kWh</span>
-                <span className="font-semibold text-emerald-700">₹{sb.amount}</span>
+              <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 pt-1 border-t border-slate-100">
+                <span className="font-medium text-slate-600">{sb.units} kWh</span>
+                <span className="font-bold text-emerald-700">₹{sb.amount}</span>
               </div>
             </button>
           ))}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   AreaChart,
   Area,
@@ -15,12 +15,14 @@ interface EnergyTrendsChartProps {
 }
 
 export const EnergyTrendsChart: React.FC<EnergyTrendsChartProps> = ({ bills }) => {
-  const chartData = bills.map((b) => ({
-    name: b.billMonth.split(' ')[0], // 'May', 'Jun', etc.
-    units: b.unitsConsumed,
-    cost: b.totalAmount,
-    rate: b.tariffRatePerUnit,
-  }));
+  const chartData = useMemo(() => {
+    return bills.map((b) => ({
+      name: b.billMonth.split(' ')[0], // 'May', 'Jun', etc.
+      units: b.unitsConsumed,
+      cost: b.totalAmount,
+      rate: b.tariffRatePerUnit,
+    }));
+  }, [bills]);
 
   return (
     <div className="w-full h-64 sm:h-72">

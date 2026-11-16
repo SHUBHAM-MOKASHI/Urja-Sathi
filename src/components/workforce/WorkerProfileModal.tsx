@@ -71,13 +71,17 @@ export const WorkerProfileModal: React.FC<WorkerProfileModalProps> = ({
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
               <FileBadge className="h-4 w-4 text-emerald-600" />
-              1. Independently Verified Government Credentials
+              {worker.isDemoProfile
+                ? '1. Simulated Credentials (Demonstration Profile Only)'
+                : '1. Independently Verified Government Credentials'}
             </h4>
             <Badge
-              variant={worker.verificationStatus === 'verified_licensed' ? 'emerald' : 'amber'}
+              variant={worker.isDemoProfile ? 'amber' : worker.verificationStatus === 'verified_licensed' ? 'emerald' : 'amber'}
               size="sm"
             >
-              {worker.verificationStatus === 'verified_licensed'
+              {worker.isDemoProfile
+                ? 'Simulated Credential — Demonstration Only'
+                : worker.verificationStatus === 'verified_licensed'
                 ? 'Verified Licensed'
                 : 'Pending / Unverified'}
             </Badge>
@@ -88,19 +92,31 @@ export const WorkerProfileModal: React.FC<WorkerProfileModalProps> = ({
               {worker.verifiedQualifications.map((cert) => (
                 <div
                   key={cert.id}
-                  className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-2 text-xs"
+                  className={`p-4 rounded-xl border space-y-2 text-xs ${
+                    worker.isDemoProfile
+                      ? 'border-amber-200 bg-amber-50/40'
+                      : 'border-emerald-200 bg-emerald-50/40'
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-bold text-slate-900 text-sm">{cert.certificateName}</span>
-                    <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span
+                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                        worker.isDemoProfile
+                          ? 'text-amber-800 bg-amber-100'
+                          : 'text-emerald-800 bg-emerald-100'
+                      }`}
+                    >
                       <ShieldCheck className="h-3 w-3" />
-                      {cert.isVerified ? 'Verified Active' : 'Under Review'}
+                      {worker.isDemoProfile ? 'Simulated Demo ID' : cert.isVerified ? 'Verified Active' : 'Under Review'}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
                     <div>
-                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Registration / License Number</span>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                        {worker.isDemoProfile ? 'Sample Identifier (Demo)' : 'Registration / License Number'}
+                      </span>
                       <span className="font-mono font-bold text-slate-900">{cert.certificateNumber}</span>
                     </div>
                     <div>
@@ -109,11 +125,11 @@ export const WorkerProfileModal: React.FC<WorkerProfileModalProps> = ({
                     </div>
                   </div>
 
-                  {cert.verificationSource && (
-                    <div className="text-[11px] text-slate-500 pt-1 border-t border-emerald-200/60">
-                      Audit Trail: {cert.verificationSource}
-                    </div>
-                  )}
+                  <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
+                    {worker.isDemoProfile
+                      ? 'Audit Trail: Demonstration profile record for platform UI evaluation. Not an active government license.'
+                      : `Audit Trail: ${cert.verificationSource || 'Verified through official state electrical licensing registry'}`}
+                  </div>
                 </div>
               ))}
             </div>

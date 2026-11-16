@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { ApplianceBreakdown } from '../../types';
 
@@ -18,13 +18,15 @@ const APPLIANCE_COLORS = [
 ];
 
 export const ApplianceConsumptionChart: React.FC<ApplianceConsumptionChartProps> = ({ breakdowns }) => {
-  const data = breakdowns.map((b) => ({
-    name: b.name,
-    value: b.monthlyKwh,
-    cost: b.monthlyCostInr,
-    pct: b.percentageOfTotal,
-    hours: b.dailyUsageHours,
-  }));
+  const data = useMemo(() => {
+    return breakdowns.map((b) => ({
+      name: b.name,
+      value: b.monthlyKwh,
+      cost: b.monthlyCostInr,
+      pct: b.percentageOfTotal,
+      hours: b.dailyUsageHours,
+    }));
+  }, [breakdowns]);
 
   if (data.length === 0) {
     return (

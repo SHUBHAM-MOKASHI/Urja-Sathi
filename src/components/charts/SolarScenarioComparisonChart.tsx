@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   BarChart,
   Bar,
@@ -22,20 +22,22 @@ interface SolarScenarioComparisonChartProps {
 export const SolarScenarioComparisonChart: React.FC<SolarScenarioComparisonChartProps> = ({
   scenarios,
 }) => {
-  const chartData = [
-    {
-      metric: 'Annual Yield (kWh)',
-      Conservative: scenarios.conservative.annualGenerationKwh,
-      Central: scenarios.central.annualGenerationKwh,
-      Optimistic: scenarios.optimistic.annualGenerationKwh,
-    },
-    {
-      metric: 'Net Savings (₹/yr)',
-      Conservative: scenarios.conservative.annualNetBenefitInr,
-      Central: scenarios.central.annualNetBenefitInr,
-      Optimistic: scenarios.optimistic.annualNetBenefitInr,
-    },
-  ];
+  const chartData = useMemo(() => {
+    return [
+      {
+        metric: 'Annual Yield (kWh)',
+        Conservative: scenarios.conservative.annualGenerationKwh,
+        Central: scenarios.central.annualGenerationKwh,
+        Optimistic: scenarios.optimistic.annualGenerationKwh,
+      },
+      {
+        metric: 'Net Savings (₹/yr)',
+        Conservative: scenarios.conservative.annualNetBenefitInr,
+        Central: scenarios.central.annualNetBenefitInr,
+        Optimistic: scenarios.optimistic.annualNetBenefitInr,
+      },
+    ];
+  }, [scenarios]);
 
   return (
     <div className="w-full h-72">

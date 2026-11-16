@@ -46,12 +46,18 @@ export const GovernmentSchemesPage: React.FC = () => {
 
   return (
     <div className="space-y-8 pb-12">
-      {/* Header Banner */}
+      {/* Header Banner (Integrated & Compact SaaS Style) */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-forest-950 via-forest-900 to-forest-800 text-white p-6 sm:p-8 shadow-xl">
         <div className="relative z-10 max-w-4xl space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-semibold uppercase tracking-wider backdrop-blur-sm">
-            <Landmark className="h-3.5 w-3.5 text-emerald-400" />
-            Source-Backed Policy Registry • Har Ghar Bachat, Har Haath Kaam
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-semibold uppercase tracking-wider backdrop-blur-sm">
+              <Landmark className="h-3.5 w-3.5 text-emerald-400" />
+              Source-Backed Policy Registry • Har Ghar Bachat, Har Haath Kaam
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/20 border border-sky-400/30 text-sky-200 text-xs font-semibold backdrop-blur-sm">
+              <ShieldCheck className="h-3.5 w-3.5 text-sky-300" />
+              Direct Portals Only (.gov.in)
+            </div>
           </div>
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight">
             Government Scheme Guidance & Subsidy Preparation
@@ -61,26 +67,16 @@ export const GovernmentSchemesPage: React.FC = () => {
             confidence. Prepare your documents, avoid common DBT rejection pitfalls, and access verified official
             application portals.
           </p>
+          <div className="pt-1 text-xs text-emerald-200/90 flex items-center gap-2 font-medium">
+            <span>• Independent civic guidance</span>
+            <span>• Direct Benefit Transfer (DBT) into your bank account</span>
+            <span>• Zero intermediary charges</span>
+          </div>
         </div>
 
         {/* Decorative background glow */}
         <div className="absolute -right-12 -top-12 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
         <div className="absolute right-32 -bottom-16 h-56 w-56 rounded-full bg-sky-500/10 blur-2xl pointer-events-none" />
-      </div>
-
-      {/* Safety & Direct Portal Mandate Alert */}
-      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-2xs">
-        <ShieldCheck className="h-5 w-5 text-emerald-700 shrink-0 mt-0.5" />
-        <div className="text-xs text-emerald-950 space-y-1">
-          <span className="font-bold text-sm block text-emerald-900">
-            Official Portal Direct Links Only • Zero Third-Party Middlemen
-          </span>
-          <p className="leading-relaxed text-emerald-900/90">
-            URJA SAATHI is an independent guidance assistant and never submits applications or collects fees.
-            Subsidies are credited directly into the applicant's Aadhaar-linked bank account via government Direct Benefit Transfer (DBT).
-            All application buttons direct you strictly to authorized government domains (<code className="font-mono bg-emerald-100/70 px-1 py-0.5 rounded text-emerald-900">.gov.in</code>).
-          </p>
-        </div>
       </div>
 
       {/* State & DISCOM Selector */}

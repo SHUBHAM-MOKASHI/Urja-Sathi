@@ -1,6 +1,6 @@
 import React from 'react';
 import { StateDiscomInfo } from '../../types';
-import { MapPin, Building2 } from 'lucide-react';
+import { MapPin, Building2, ExternalLink } from 'lucide-react';
 
 interface StateDiscomSelectorProps {
   states: StateDiscomInfo[];
@@ -96,11 +96,24 @@ export const StateDiscomSelector: React.FC<StateDiscomSelectorProps> = ({
             ))}
           </select>
           {selectedDiscom !== 'all' && (
-            <div className="mt-1.5 text-[11px] text-slate-500 flex items-center gap-1">
-              <span>Consumer ID Format:</span>
-              <span className="font-semibold text-emerald-800">
-                {discomList.find((d) => d.code === selectedDiscom)?.consumerNumberFormat || 'Standard Account No'}
-              </span>
+            <div className="mt-2 text-[11px] text-slate-500 flex flex-wrap items-center justify-between gap-1 p-2 bg-slate-50 rounded-xl border border-slate-100">
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-slate-600">Consumer ID Format:</span>
+                <span className="font-bold text-emerald-900 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                  {discomList.find((d) => d.code === selectedDiscom)?.consumerNumberFormat || 'Standard Account No'}
+                </span>
+              </div>
+              {discomList.find((d) => d.code === selectedDiscom)?.portalUrl && (
+                <a
+                  href={discomList.find((d) => d.code === selectedDiscom)?.portalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1 font-semibold"
+                >
+                  <span>Utility Portal</span>
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
             </div>
           )}
         </div>

@@ -4,7 +4,7 @@
  * Har Ghar Bachat, Har Haath Kaam
  */
 
-const CACHE_VERSION = 'v1.0.1';
+const CACHE_VERSION = 'v1.0.2';
 const STATIC_CACHE = `urja-saathi-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `urja-saathi-dynamic-${CACHE_VERSION}`;
 

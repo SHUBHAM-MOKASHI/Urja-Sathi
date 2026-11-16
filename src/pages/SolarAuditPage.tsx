@@ -28,6 +28,8 @@ import {
   History,
   Trash2,
   FileText,
+  ArrowRight,
+  Sparkles,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -269,565 +271,663 @@ export const SolarAuditPage: React.FC = () => {
         </p>
       </div>
 
-      {/* Grid: Inputs Panel on Left, Decision & Scenarios on Right */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Inputs Column */}
-        <div className="lg:col-span-5 space-y-6">
-          <Card className="p-5 space-y-5">
+      {/* 2. HOUSEHOLD & ROOFTOP INPUTS (RESPONSIVE GRID) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Left Card: Property & Terrace Baseline */}
+        <Card className="p-5 sm:p-6 space-y-5 min-w-0">
+          <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Compass className="w-4 h-4 text-emerald-600" />
-              Property & Installation Inputs
+              Property & Shadow-Free Terrace Baseline
             </h3>
+            <Badge variant="slate" size="sm">Site Parameters</Badge>
+          </div>
 
-            {/* Roof Ownership (Crucial Decision Filter) */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Roof Ownership Status *
-              </label>
-              <select
-                value={roofOwnership}
-                onChange={(e) => {
-                  const val = e.target.value as RoofOwnershipType;
-                  setRoofOwnership(val);
-                  if (val === 'no_roof') {
-                    setUsableArea(0);
-                  } else if (usableArea === 0) {
-                    setUsableArea(350);
-                  }
-                }}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="owned_individual">Individually Owned House / Terrace</option>
-                <option value="shared_apartment">Shared Apartment / Multi-story Society</option>
-                <option value="tenant">Tenant / Rented Property (No Ownership)</option>
-                <option value="no_roof">No Usable Roof Access</option>
-              </select>
+          {/* Roof Ownership (Crucial Decision Filter) */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Roof Ownership Status *
+            </label>
+            <select
+              value={roofOwnership}
+              onChange={(e) => {
+                const val = e.target.value as RoofOwnershipType;
+                setRoofOwnership(val);
+                if (val === 'no_roof') {
+                  setUsableArea(0);
+                } else if (usableArea === 0) {
+                  setUsableArea(350);
+                }
+              }}
+              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="owned_individual">Individually Owned House / Private Terrace</option>
+              <option value="shared_apartment">Shared Apartment / Multi-story Society</option>
+              <option value="tenant">Tenant / Rented Property (No Ownership)</option>
+              <option value="no_roof">No Usable Roof Access</option>
+            </select>
+          </div>
+
+          {/* Usable Roof Area */}
+          <div>
+            <div className="flex justify-between items-center text-xs font-semibold text-slate-700 mb-1">
+              <span>Usable Shadow-Free Roof Area</span>
+              <span className="text-emerald-800 font-bold">{usableArea} sq ft</span>
             </div>
-
-            {/* Usable Roof Area */}
-            <div>
-              <div className="flex justify-between items-center text-xs font-semibold text-slate-700 mb-1">
-                <span>Usable Shadow-Free Roof Area</span>
-                <span className="text-emerald-800 font-bold">{usableArea} sq ft</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="1200"
-                step="25"
-                value={usableArea}
-                onChange={(e) => setUsableArea(Number(e.target.value))}
-                disabled={roofOwnership === 'no_roof'}
-                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600 disabled:opacity-50"
-              />
-              <div className="flex justify-between text-[11px] text-slate-400 mt-0.5">
-                <span>0 sq ft</span>
-                <span>~100 sq ft per 1 kW</span>
-                <span>1200+ sq ft</span>
-              </div>
+            <input
+              type="range"
+              min="0"
+              max="1200"
+              step="25"
+              value={usableArea}
+              onChange={(e) => setUsableArea(Number(e.target.value))}
+              disabled={roofOwnership === 'no_roof'}
+              className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600 disabled:opacity-50"
+            />
+            <div className="flex justify-between text-[11px] text-slate-400 mt-1">
+              <span>0 sq ft</span>
+              <span>~100 sq ft per 1 kW</span>
+              <span>1200+ sq ft</span>
             </div>
+          </div>
 
-            {/* Consumption & Bill */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-700">Billing & Energy Input</span>
-                {hasConfirmedBill ? (
-                  <Badge variant="emerald" size="sm" icon={<CheckCircle2 className="w-3 h-3 text-emerald-600" />}>
-                    Confirmed ({billPeriod})
-                  </Badge>
-                ) : (
-                  <span className="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                    Baseline Estimate • <Link to="/bills" className="underline font-bold hover:text-amber-950">Scan Bill</Link>
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Monthly Units (kWh)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="10000"
-                    value={monthlyUnits}
-                    onChange={(e) => setMonthlyUnits(Math.max(0, Number(e.target.value)))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Monthly Bill (₹)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="200000"
-                    value={monthlyBill}
-                    onChange={(e) => setMonthlyBill(Math.max(0, Number(e.target.value)))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Optional Specific Vendor Quotation */}
-            <div className="pt-2 border-t border-slate-100 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-                  Vendor Quotation & Financials (Optional)
+          {/* Consumption & Bill */}
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-700">Household Energy Baseline</span>
+              {hasConfirmedBill ? (
+                <Badge variant="emerald" size="sm" icon={<CheckCircle2 className="w-3 h-3 text-emerald-600" />}>
+                  Confirmed Bill ({billPeriod})
+                </Badge>
+              ) : (
+                <span className="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 font-medium">
+                  Manual Estimate • <Link to="/bills" className="underline font-bold hover:text-amber-950">Scan Bill</Link>
                 </span>
-                <Link
-                  to="/quotations"
-                  className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1"
-                >
-                  Compare Installer Bids →
-                </Link>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label className="block font-medium text-slate-600 mb-1">Proposed Capacity (kW)</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="1"
-                    max="50"
-                    placeholder="Auto (Recommended)"
-                    value={proposedCapacity}
-                    onChange={(e) =>
-                      setProposedCapacity(e.target.value === '' ? '' : Number(e.target.value))
-                    }
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-600 mb-1">Installer Quote (₹)</label>
-                  <input
-                    type="number"
-                    placeholder="Auto (Benchmark)"
-                    value={installerQuote}
-                    onChange={(e) =>
-                      setInstallerQuote(e.target.value === '' ? '' : Number(e.target.value))
-                    }
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label className="block font-medium text-slate-600 mb-1">Maint. Expense (₹/yr)</label>
-                  <input
-                    type="number"
-                    placeholder="Auto (~1% capex)"
-                    value={annualMaintenance}
-                    onChange={(e) =>
-                      setAnnualMaintenance(e.target.value === '' ? '' : Number(e.target.value))
-                    }
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-600 mb-1">Verified Subsidy (₹)</label>
-                  <input
-                    type="number"
-                    placeholder="Auto (PM Surya Ghar)"
-                    value={verifiedSubsidy}
-                    onChange={(e) =>
-                      setVerifiedSubsidy(e.target.value === '' ? '' : Number(e.target.value))
-                    }
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-1">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="subVer"
-                    checked={isSubsidyVerified}
-                    onChange={(e) => setIsSubsidyVerified(e.target.checked)}
-                    className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
-                  />
-                  <label htmlFor="subVer" className="text-xs text-slate-600 cursor-pointer">
-                    Subsidy confirmed via National Portal / DISCOM sanction
-                  </label>
-                </div>
-                <Link
-                  to="/schemes"
-                  className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
-                >
-                  Govt Scheme & DBT Guidance →
-                </Link>
-              </div>
+              )}
             </div>
 
-            {/* Existing Installation Toggle (Decision 3 Trigger) */}
-            <div className="pt-2 border-t border-slate-100 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-800">
-                  Already have solar installed?
-                </span>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Monthly Units (kWh)
+                </label>
                 <input
-                  type="checkbox"
-                  id="hasSolar"
-                  checked={hasExistingInstallation}
-                  onChange={(e) => setHasExistingInstallation(e.target.checked)}
-                  className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                  type="number"
+                  min="0"
+                  max="10000"
+                  value={monthlyUnits}
+                  onChange={(e) => setMonthlyUnits(Math.max(0, Number(e.target.value)))}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
-              {hasExistingInstallation && (
-                <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200/80 text-xs space-y-1">
-                  <label className="block font-semibold text-amber-950">Installed Solar Capacity (kW)</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="1"
-                    max="50"
-                    value={existingCapacityKw}
-                    onChange={(e) => setExistingCapacityKw(Math.max(1, Number(e.target.value)))}
-                    className="w-full px-3 py-1.5 bg-white border border-amber-200 rounded-xl font-bold"
-                  />
-                  <p className="text-[11px] text-amber-900 mt-1">
-                    Switches engine to plant diagnostic and yield review mode.
-                  </p>
-                </div>
-              )}
-            </div>
-          </Card>
-
-          {/* Missing Information Audit Card */}
-          <Card className="p-5 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-              <AlertTriangle className="w-4 h-4 text-amber-500" />
-              Information Completeness Audit
-            </h4>
-            <div className="space-y-2">
-              {solarResult.missingInformation.map((m, idx) => (
-                <div
-                  key={idx}
-                  className={`p-2.5 rounded-xl text-xs space-y-0.5 border ${
-                    m.importance === 'critical'
-                      ? 'bg-rose-50/70 border-rose-200 text-rose-950'
-                      : 'bg-slate-50 border-slate-200 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold">{m.message}</span>
-                    <Badge variant={m.importance === 'critical' ? 'rose' : 'slate'} size="sm">
-                      {m.importance}
-                    </Badge>
-                  </div>
-                  <p className="text-[11px] opacity-90">Remedy: {m.remedy}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-
-        {/* Right Output & Decision Column */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* PRIMARY DECISION CARD */}
-          <Card
-            variant={
-              solarResult.decision === 'explore_solar'
-                ? 'forest'
-                : solarResult.decision === 'review_existing_installation'
-                ? 'default'
-                : 'default'
-            }
-            className="p-6 space-y-4"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {solarResult.decision === 'explore_solar' && (
-                  <Sun className="w-5 h-5 text-amber-400" />
-                )}
-                {solarResult.decision === 'save_without_solar' && (
-                  <TrendingDown className="w-5 h-5 text-emerald-600" />
-                )}
-                {solarResult.decision === 'review_existing_installation' && (
-                  <Wrench className="w-5 h-5 text-blue-600" />
-                )}
-                <span className="text-xs font-bold uppercase tracking-wider">
-                  Engine Decision Recommendation
-                </span>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Monthly Bill (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="200000"
+                  value={monthlyBill}
+                  onChange={(e) => setMonthlyBill(Math.max(0, Number(e.target.value)))}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
               </div>
-              <Badge
-                variant={
-                  solarResult.decision === 'explore_solar'
-                    ? 'emerald'
-                    : solarResult.decision === 'review_existing_installation'
-                    ? 'blue'
-                    : 'amber'
+            </div>
+          </div>
+
+          {/* Existing Installation Toggle */}
+          <div className="pt-2 border-t border-slate-100 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800">
+                Already have solar installed?
+              </span>
+              <input
+                type="checkbox"
+                id="hasSolar"
+                checked={hasExistingInstallation}
+                onChange={(e) => setHasExistingInstallation(e.target.checked)}
+                className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer"
+              />
+            </div>
+
+            {hasExistingInstallation && (
+              <div className="p-3.5 bg-amber-50/70 rounded-2xl border border-amber-200/90 text-xs space-y-1.5">
+                <label className="block font-semibold text-amber-950">Installed Solar Capacity (kW)</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="1"
+                  max="50"
+                  value={existingCapacityKw}
+                  onChange={(e) => setExistingCapacityKw(Math.max(1, Number(e.target.value)))}
+                  className="w-full px-3.5 py-2 bg-white border border-amber-200 rounded-xl font-bold text-slate-800"
+                />
+                <p className="text-[11px] text-amber-900">
+                  Switches engine to plant diagnostic and yield review mode.
+                </p>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Right Card: Turnkey Installer Quote & Subsidies */}
+        <Card className="p-5 sm:p-6 space-y-5 min-w-0">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-600" />
+              Installer Quotes & Financial Customization
+            </span>
+            <Link
+              to="/quotations"
+              className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1"
+            >
+              Compare Vendor Bids →
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <label className="block font-medium text-slate-600 mb-1">Proposed Capacity (kW)</label>
+              <input
+                type="number"
+                step="0.5"
+                min="1"
+                max="50"
+                placeholder="Auto (Recommended)"
+                value={proposedCapacity}
+                onChange={(e) =>
+                  setProposedCapacity(e.target.value === '' ? '' : Number(e.target.value))
                 }
-                size="sm"
-              >
-                {solarResult.decision.replace(/_/g, ' ').toUpperCase()}
-              </Badge>
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500"
+              />
             </div>
 
             <div>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-                {solarResult.decisionTitle}
-              </h2>
-              <p
-                className={`text-xs sm:text-sm mt-2 leading-relaxed ${
-                  solarResult.decision === 'explore_solar' ? 'text-emerald-100' : 'text-slate-600'
-                }`}
-              >
-                {solarResult.decisionRationale}
-              </p>
+              <label className="block font-medium text-slate-600 mb-1">Installer Quote (₹)</label>
+              <input
+                type="number"
+                placeholder="Auto (Benchmark Capex)"
+                value={installerQuote}
+                onChange={(e) =>
+                  setInstallerQuote(e.target.value === '' ? '' : Number(e.target.value))
+                }
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500"
+              />
             </div>
 
-            {/* Quick Metrics if Feasible */}
+            <div>
+              <label className="block font-medium text-slate-600 mb-1">Annual Maintenance (₹/yr)</label>
+              <input
+                type="number"
+                placeholder="Auto (~1% Capex)"
+                value={annualMaintenance}
+                onChange={(e) =>
+                  setAnnualMaintenance(e.target.value === '' ? '' : Number(e.target.value))
+                }
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block font-medium text-slate-600 mb-1">Verified Subsidy (₹)</label>
+              <input
+                type="number"
+                placeholder="Auto (PM Surya Ghar)"
+                value={verifiedSubsidy}
+                onChange={(e) =>
+                  setVerifiedSubsidy(e.target.value === '' ? '' : Number(e.target.value))
+                }
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="subVer"
+                checked={isSubsidyVerified}
+                onChange={(e) => setIsSubsidyVerified(e.target.checked)}
+                className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer"
+              />
+              <label htmlFor="subVer" className="text-xs text-slate-600 cursor-pointer">
+                Subsidy confirmed via National Portal / DISCOM sanction
+              </label>
+            </div>
+            <Link
+              to="/schemes"
+              className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+            >
+              Govt Schemes & DBT Guidance →
+            </Link>
+          </div>
+        </Card>
+      </div>
+
+      {/* 3. THREE-WAY SOLAR DECISION (FULL WIDTH) */}
+      <Card
+        variant={
+          solarResult.decision === 'explore_solar'
+            ? 'forest'
+            : 'default'
+        }
+        className="p-6 sm:p-8 space-y-5 shadow-premium"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
             {solarResult.decision === 'explore_solar' && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-forest-800 text-xs text-white">
-                <div>
-                  <span className="text-emerald-300 text-[11px]">System Size</span>
-                  <p className="font-bold text-base">{solarResult.recommendedCapacityKw} kW</p>
-                </div>
-                <div>
-                  <span className="text-emerald-300 text-[11px]">Net Outlay</span>
-                  <p className="font-bold text-base">{formatCurrency(solarResult.netInvestmentCostInr)}</p>
-                </div>
-                <div>
-                  <span className="text-emerald-300 text-[11px]">Benchmark Payback</span>
-                  <p className="font-bold text-base text-amber-300">
-                    {solarResult.scenarios.central.simplePaybackYears} Years
-                  </p>
-                </div>
-                <div>
-                  <span className="text-emerald-300 text-[11px]">Annual Benefit</span>
-                  <p className="font-bold text-base text-emerald-300">
-                    {formatCurrency(solarResult.scenarios.central.annualNetBenefitInr)}/yr
-                  </p>
-                </div>
+              <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center border border-amber-400/30">
+                <Sun className="w-6 h-6 text-amber-300" />
               </div>
             )}
-          </Card>
-
-          {/* THREE SCENARIOS COMPARISON CARDS */}
-          {solarResult.decision === 'explore_solar' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Sensitivity Scenarios: Generation & Return Comparison
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Comparing Conservative, Central Benchmark, and High-Insolation conditions
-                  </p>
-                </div>
-                <Badge variant="slate" size="sm">
-                  3 Scenarios
-                </Badge>
+            {solarResult.decision === 'save_without_solar' && (
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center border border-emerald-200">
+                <TrendingDown className="w-6 h-6 text-emerald-700" />
               </div>
+            )}
+            {solarResult.decision === 'review_existing_installation' && (
+              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center border border-blue-200">
+                <Wrench className="w-6 h-6 text-blue-700" />
+              </div>
+            )}
+            <div>
+              <span className={`text-[11px] font-bold uppercase tracking-wider block ${solarResult.decision === 'explore_solar' ? 'text-emerald-300' : 'text-slate-500'}`}>
+                Feasibility Engine Recommendation
+              </span>
+              <span className={`text-xs font-semibold ${solarResult.decision === 'explore_solar' ? 'text-emerald-100' : 'text-slate-700'}`}>
+                {solarResult.decision === 'explore_solar'
+                  ? 'PM Surya Ghar: Muft Bijli Yojana Compatible'
+                  : solarResult.decision === 'save_without_solar'
+                  ? 'Energy Conservation Pathway (Zero Capex)'
+                  : 'Installed Plant O&M & Net Metering Audit'}
+              </span>
+            </div>
+          </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Conservative */}
-                <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-2 text-xs shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-700">Conservative</span>
-                    <Badge variant="slate" size="sm">Low Solar</Badge>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[11px] text-slate-400">Annual Generation:</span>
-                    <p className="font-bold text-slate-900 text-sm">
+          <Badge
+            variant={
+              solarResult.decision === 'explore_solar'
+                ? 'emerald'
+                : solarResult.decision === 'review_existing_installation'
+                ? 'blue'
+                : 'amber'
+            }
+            size="md"
+          >
+            {solarResult.decision.replace(/_/g, ' ').toUpperCase()}
+          </Badge>
+        </div>
+
+        <div>
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+            {solarResult.decisionTitle}
+          </h2>
+          <p
+            className={`text-xs sm:text-sm mt-2 leading-relaxed max-w-4xl ${
+              solarResult.decision === 'explore_solar' ? 'text-emerald-100/90' : 'text-slate-600'
+            }`}
+          >
+            {solarResult.decisionRationale}
+          </p>
+        </div>
+
+        {/* Action CTAs for non-explore_solar */}
+        {solarResult.decision === 'save_without_solar' && (
+          <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200">
+            <p className="text-xs text-slate-600">
+              Solar is not economically or structurally viable for your profile right now. Focus on zero-cost behavioral habits and high-efficiency appliance retrofits.
+            </p>
+            <Link to="/savings">
+              <Button size="sm" variant="primary" icon={<ArrowRight className="w-4 h-4" />}>
+                Open Appliance Savings Planner
+              </Button>
+            </Link>
+          </div>
+        )}
+
+        {solarResult.decision === 'review_existing_installation' && (
+          <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200">
+            <p className="text-xs text-slate-600">
+              Your {existingCapacityKw} kW rooftop plant should produce approximately {Math.round(existingCapacityKw * 120)} kWh monthly. Ensure quarterly module washing and check inverter fault codes.
+            </p>
+            <Link to="/workforce">
+              <Button size="sm" variant="primary" icon={<Wrench className="w-4 h-4" />}>
+                Find Certified Solar Wireman for Inspection
+              </Button>
+            </Link>
+          </div>
+        )}
+      </Card>
+
+      {/* 4. FINANCIAL KPI SUMMARY (FULL WIDTH) */}
+      {solarResult.decision === 'explore_solar' && (
+        <div className="space-y-4 pt-1">
+          {/* 6 Metric KPI Tiles */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
+              <span className="text-slate-400 text-[11px] font-medium block">Recommended Size</span>
+              <p className="font-extrabold text-lg sm:text-xl text-slate-900 mt-1">
+                {solarResult.recommendedCapacityKw} kW
+              </p>
+              <span className="text-[10px] text-slate-500">~{solarResult.recommendedCapacityKw * 100} sq ft roof</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
+              <span className="text-slate-400 text-[11px] font-medium block">Benchmark Capex</span>
+              <p className="font-extrabold text-lg sm:text-xl text-slate-900 mt-1">
+                {formatCurrency(solarResult.grossInvestmentCostInr)}
+              </p>
+              <span className="text-[10px] text-slate-500">Turnkey estimate</span>
+            </div>
+
+            <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200 shadow-xs">
+              <span className="text-emerald-800 text-[11px] font-medium block">Central Subsidy</span>
+              <p className="font-extrabold text-lg sm:text-xl text-emerald-700 mt-1">
+                {formatCurrency(solarResult.financialAssistanceInr)}
+              </p>
+              <span className="text-[10px] text-emerald-600">PM Surya Ghar DBT</span>
+            </div>
+
+            <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200 shadow-xs">
+              <span className="text-emerald-800 text-[11px] font-medium block">Net Household Cost</span>
+              <p className="font-extrabold text-lg sm:text-xl text-emerald-800 mt-1">
+                {formatCurrency(solarResult.netInvestmentCostInr)}
+              </p>
+              <span className="text-[10px] text-emerald-600">After central grant</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
+              <span className="text-slate-400 text-[11px] font-medium block">Simple Payback</span>
+              <p className="font-extrabold text-lg sm:text-xl text-amber-700 mt-1">
+                {solarResult.scenarios.central.simplePaybackYears} Years
+              </p>
+              <span className="text-[10px] text-slate-500">Central scenario</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
+              <span className="text-slate-400 text-[11px] font-medium block">25-Yr Net Savings</span>
+              <p className="font-extrabold text-lg sm:text-xl text-emerald-800 mt-1">
+                {formatCurrency(solarResult.scenarios.central.twentyFiveYearCumulativeSavingsInr)}
+              </p>
+              <span className="text-[10px] text-slate-500">Cumulative return</span>
+            </div>
+          </div>
+
+          {/* 3 Sensitivity Scenario Cards */}
+          <div className="space-y-3 pt-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                  Sensitivity Scenarios: Generation & Return Comparison
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Engineering sensitivity modeling under Conservative, Central Benchmark, and High-Insolation conditions
+                </p>
+              </div>
+              <Badge variant="slate" size="sm">3 Verified Scenarios</Badge>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Conservative */}
+              <div className="p-5 bg-white rounded-2xl border border-slate-200/90 space-y-3 text-xs shadow-xs min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800 text-sm">Conservative</span>
+                  <Badge variant="slate" size="sm">Low Insolation</Badge>
+                </div>
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-[11px] text-slate-400 block">Annual Generation:</span>
+                    <p className="font-bold text-slate-900 text-base">
                       {formatKwh(solarResult.scenarios.conservative.annualGenerationKwh)}
                     </p>
-                    <span className="text-[11px] text-slate-400">Annual Net Benefit:</span>
-                    <p className="font-bold text-slate-800 text-sm">
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-400 block">Annual Net Benefit:</span>
+                    <p className="font-bold text-slate-800 text-base">
                       {formatCurrency(solarResult.scenarios.conservative.annualNetBenefitInr)}
                     </p>
-                    <span className="text-[11px] text-slate-400">Simple Payback:</span>
-                    <p className="font-bold text-amber-700">
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-400 block">Simple Payback:</span>
+                    <p className="font-bold text-amber-700 text-base">
                       {solarResult.scenarios.conservative.simplePaybackYears
-                        ? `${solarResult.scenarios.conservative.simplePaybackYears} Yrs`
+                        ? `${solarResult.scenarios.conservative.simplePaybackYears} Years`
                         : 'Unviable'}
                     </p>
                   </div>
-                  <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-100">
-                    1,300 kWh/kW/yr • 70% self-consumed • 1.0% degradation
-                  </p>
                 </div>
-
-                {/* Central (Benchmark) */}
-                <div className="p-4 bg-emerald-50/70 rounded-2xl border-2 border-emerald-500 space-y-2 text-xs shadow-subtle relative">
-                  <div className="absolute -top-2.5 right-3 bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
-                    Benchmark
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-emerald-950">Central</span>
-                    <Badge variant="emerald" size="sm">National Avg</Badge>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[11px] text-emerald-800">Annual Generation:</span>
-                    <p className="font-bold text-emerald-950 text-sm">
-                      {formatKwh(solarResult.scenarios.central.annualGenerationKwh)}
-                    </p>
-                    <span className="text-[11px] text-emerald-800">Annual Net Benefit:</span>
-                    <p className="font-bold text-emerald-900 text-sm">
-                      {formatCurrency(solarResult.scenarios.central.annualNetBenefitInr)}
-                    </p>
-                    <span className="text-[11px] text-emerald-800">Simple Payback:</span>
-                    <p className="font-bold text-emerald-900">
-                      {solarResult.scenarios.central.simplePaybackYears
-                        ? `${solarResult.scenarios.central.simplePaybackYears} Yrs`
-                        : 'Unviable'}
-                    </p>
-                  </div>
-                  <p className="text-[10px] text-emerald-700 pt-1 border-t border-emerald-200">
-                    1,460 kWh/kW/yr • 80% self-consumed • 0.7% degradation
-                  </p>
-                </div>
-
-                {/* Optimistic */}
-                <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-2 text-xs shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-700">Optimistic</span>
-                    <Badge variant="amber" size="sm">High Sun</Badge>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[11px] text-slate-400">Annual Generation:</span>
-                    <p className="font-bold text-slate-900 text-sm">
-                      {formatKwh(solarResult.scenarios.optimistic.annualGenerationKwh)}
-                    </p>
-                    <span className="text-[11px] text-slate-400">Annual Net Benefit:</span>
-                    <p className="font-bold text-slate-800 text-sm">
-                      {formatCurrency(solarResult.scenarios.optimistic.annualNetBenefitInr)}
-                    </p>
-                    <span className="text-[11px] text-slate-400">Simple Payback:</span>
-                    <p className="font-bold text-emerald-700">
-                      {solarResult.scenarios.optimistic.simplePaybackYears
-                        ? `${solarResult.scenarios.optimistic.simplePaybackYears} Yrs`
-                        : 'Unviable'}
-                    </p>
-                  </div>
-                  <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-100">
-                    1,550 kWh/kW/yr • 90% self-consumed • 0.5% degradation
-                  </p>
-                </div>
+                <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-100">
+                  1,300 kWh/kW/yr • 70% self-consumed • 1.0% annual degradation
+                </p>
               </div>
 
-              {/* Scenarios Visual Chart */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Scenario Comparison: Yield & Annual Returns</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <SolarScenarioComparisonChart scenarios={solarResult.scenarios} />
-                </CardContent>
-              </Card>
+              {/* Central (Benchmark) */}
+              <div className="p-5 bg-emerald-50/70 rounded-2xl border-2 border-emerald-500 space-y-3 text-xs shadow-subtle relative min-w-0">
+                <div className="absolute -top-2.5 right-4 bg-emerald-600 text-white text-[10px] px-2.5 py-0.5 rounded-full font-bold shadow-xs">
+                  National Benchmark
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-emerald-950 text-sm">Central Scenario</span>
+                  <Badge variant="emerald" size="sm">National Avg</Badge>
+                </div>
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-[11px] text-emerald-800 block">Annual Generation:</span>
+                    <p className="font-bold text-emerald-950 text-base">
+                      {formatKwh(solarResult.scenarios.central.annualGenerationKwh)}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-emerald-800 block">Annual Net Benefit:</span>
+                    <p className="font-bold text-emerald-900 text-base">
+                      {formatCurrency(solarResult.scenarios.central.annualNetBenefitInr)}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-emerald-800 block">Simple Payback:</span>
+                    <p className="font-bold text-emerald-900 text-base">
+                      {solarResult.scenarios.central.simplePaybackYears
+                        ? `${solarResult.scenarios.central.simplePaybackYears} Years`
+                        : 'Unviable'}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-[11px] text-emerald-700 pt-2 border-t border-emerald-200">
+                  1,460 kWh/kW/yr • 80% self-consumed • 0.7% annual degradation
+                </p>
+              </div>
 
-              {/* 12-Month Production vs Load Chart */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Simulated Monthly Generation vs Load</CardTitle>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Monthly insolation curves vs domestic electricity consumption
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <SolarProductionChart
-                    systemSizeKw={solarResult.recommendedCapacityKw}
-                    monthlyAverageKwh={monthlyUnits}
-                  />
-                </CardContent>
-              </Card>
+              {/* Optimistic */}
+              <div className="p-5 bg-white rounded-2xl border border-slate-200/90 space-y-3 text-xs shadow-xs min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800 text-sm">Optimistic</span>
+                  <Badge variant="amber" size="sm">High Sun Area</Badge>
+                </div>
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-[11px] text-slate-400 block">Annual Generation:</span>
+                    <p className="font-bold text-slate-900 text-base">
+                      {formatKwh(solarResult.scenarios.optimistic.annualGenerationKwh)}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-400 block">Annual Net Benefit:</span>
+                    <p className="font-bold text-slate-800 text-base">
+                      {formatCurrency(solarResult.scenarios.optimistic.annualNetBenefitInr)}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-400 block">Simple Payback:</span>
+                    <p className="font-bold text-emerald-700 text-base">
+                      {solarResult.scenarios.optimistic.simplePaybackYears
+                        ? `${solarResult.scenarios.optimistic.simplePaybackYears} Years`
+                        : 'Unviable'}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-100">
+                  1,550 kWh/kW/yr • 90% self-consumed • 0.5% annual degradation
+                </p>
+              </div>
             </div>
-          )}
+          </div>
+        </div>
+      )}
 
-          {/* Suggested Next Steps */}
-          <Card className="p-5 space-y-3">
+      {/* 5. CHARTS (RESPONSIVE FULL-WIDTH SECTION) */}
+      {solarResult.decision === 'explore_solar' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+          {/* Chart 1: 12-Month Generation vs Household Load */}
+          <Card className="p-5 sm:p-6 space-y-3 min-w-0">
+            <CardHeader className="p-0">
+              <CardTitle>12-Month Simulated Solar Generation vs Load</CardTitle>
+              <p className="text-xs text-slate-500">
+                Simulated monthly insolation curve vs typical household seasonal electricity load
+              </p>
+            </CardHeader>
+            <CardContent className="p-0 pt-2">
+              <SolarProductionChart
+                systemSizeKw={solarResult.recommendedCapacityKw}
+                monthlyAverageKwh={monthlyUnits}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Chart 2: Scenario Comparison Yield & Returns */}
+          <Card className="p-5 sm:p-6 space-y-3 min-w-0">
+            <CardHeader className="p-0">
+              <CardTitle>Scenario Comparison: Yield & Annual Returns</CardTitle>
+              <p className="text-xs text-slate-500">
+                Comparative sensitivity returns across 10, 15, and 25-year lifetimes
+              </p>
+            </CardHeader>
+            <CardContent className="p-0 pt-2">
+              <SolarScenarioComparisonChart scenarios={solarResult.scenarios} />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* 6. RISK WARNINGS & RECOMMENDED NEXT STEPS (FULL WIDTH) */}
+      <div className="space-y-6 pt-2">
+        {/* Missing Information Completeness Audit */}
+        <Card className="p-5 sm:p-6 space-y-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            Information Completeness Audit
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {solarResult.missingInformation.map((m, idx) => (
+              <div
+                key={idx}
+                className={`p-3 rounded-2xl text-xs space-y-1 border ${
+                  m.importance === 'critical'
+                    ? 'bg-rose-50/70 border-rose-200 text-rose-950'
+                    : 'bg-slate-50 border-slate-200 text-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold">{m.message}</span>
+                  <Badge variant={m.importance === 'critical' ? 'rose' : 'slate'} size="sm">
+                    {m.importance}
+                  </Badge>
+                </div>
+                <p className="text-[11px] opacity-90">Remedy: {m.remedy}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Recommended Physical Steps */}
+        <Card className="p-5 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between">
             <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               Recommended Next Physical Steps
             </h4>
-            <div className="space-y-2">
-              {solarResult.suggestedNextSteps.map((step, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 text-xs text-slate-700 border border-slate-100"
-                >
-                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0 text-[11px]">
-                    {idx + 1}
-                  </span>
-                  <span className="leading-relaxed">{step}</span>
-                </div>
-              ))}
-            </div>
-
-            {solarResult.decision === 'explore_solar' && (
-              <div className="pt-2 flex flex-wrap justify-end gap-2">
-                <Link to="/quotations">
-                  <Button size="sm" variant="primary">
-                    Compare Turnkey Vendor Quotes →
-                  </Button>
-                </Link>
-                <Link to="/workforce">
-                  <Button size="sm" variant="outline">
-                    Book Certified Solar Wireman
-                  </Button>
-                </Link>
-              </div>
-            )}
-            {solarResult.decision === 'save_without_solar' && (
-              <div className="pt-2 flex justify-end">
-                <Link to="/savings">
-                  <Button size="sm" variant="primary">
-                    Explore Appliance Efficiency Upgrades →
-                  </Button>
-                </Link>
-              </div>
-            )}
-          </Card>
-
-          {/* Confirmed Facts vs Engineering Assumptions Table */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-2">
-              <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                <Home className="w-3.5 h-3.5 text-slate-500" />
-                Confirmed User Facts:
-              </span>
-              <ul className="list-disc list-inside text-slate-600 space-y-1">
-                {solarResult.confirmedFacts.map((f, i) => (
-                  <li key={i}>{f}</li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-2">
-              <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                <Building className="w-3.5 h-3.5 text-slate-500" />
-                Engineering Assumptions:
-              </span>
-              <ul className="list-disc list-inside text-slate-600 space-y-1">
-                {solarResult.engineeringAssumptions.map((a, i) => (
-                  <li key={i}>{a}</li>
-                ))}
-              </ul>
-            </div>
+            <Badge variant="emerald" size="sm">Action Checklist</Badge>
           </div>
 
-          {/* Legal Disclaimers Box */}
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-[11px] text-slate-500 space-y-1">
-            <p className="font-bold text-slate-700 flex items-center gap-1">
-              <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
-              Statutory Disclaimers:
-            </p>
-            <ul className="list-disc list-inside space-y-0.5">
-              {solarResult.disclaimers.map((d, i) => (
-                <li key={i}>{d}</li>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {solarResult.suggestedNextSteps.map((step, idx) => (
+              <div
+                key={idx}
+                className="flex items-start gap-3 p-3.5 rounded-2xl bg-slate-50 text-xs text-slate-700 border border-slate-200/80"
+              >
+                <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0 text-xs">
+                  {idx + 1}
+                </span>
+                <span className="leading-relaxed pt-0.5">{step}</span>
+              </div>
+            ))}
+          </div>
+
+          {solarResult.decision === 'explore_solar' && (
+            <div className="pt-2 flex flex-wrap justify-end gap-3 border-t border-slate-100">
+              <Link to="/quotations">
+                <Button size="sm" variant="primary" icon={<ArrowRight className="w-4 h-4" />}>
+                  Compare Turnkey Vendor Quotations
+                </Button>
+              </Link>
+              <Link to="/workforce">
+                <Button size="sm" variant="outline" icon={<Wrench className="w-4 h-4" />}>
+                  Find Certified Solar Wireman
+                </Button>
+              </Link>
+            </div>
+          )}
+          {solarResult.decision === 'save_without_solar' && (
+            <div className="pt-2 flex justify-end border-t border-slate-100">
+              <Link to="/savings">
+                <Button size="sm" variant="primary" icon={<ArrowRight className="w-4 h-4" />}>
+                  Explore Appliance Efficiency Upgrades
+                </Button>
+              </Link>
+            </div>
+          )}
+        </Card>
+
+        {/* Confirmed Facts vs Engineering Assumptions Table */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+          <div className="p-5 bg-white rounded-2xl border border-slate-200/90 space-y-3 shadow-xs">
+            <span className="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <Home className="w-4 h-4 text-emerald-600" />
+              Confirmed Household Facts
+            </span>
+            <ul className="list-disc list-inside text-slate-600 space-y-1.5 leading-relaxed">
+              {solarResult.confirmedFacts.map((f, i) => (
+                <li key={i}>{f}</li>
               ))}
             </ul>
           </div>
+
+          <div className="p-5 bg-white rounded-2xl border border-slate-200/90 space-y-3 shadow-xs">
+            <span className="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <Building className="w-4 h-4 text-emerald-600" />
+              Engineering & Policy Assumptions
+            </span>
+            <ul className="list-disc list-inside text-slate-600 space-y-1.5 leading-relaxed">
+              {solarResult.engineeringAssumptions.map((a, i) => (
+                <li key={i}>{a}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        {/* Statutory Disclaimers Box */}
+        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 text-xs text-slate-500 space-y-2">
+          <p className="font-bold text-slate-700 flex items-center gap-1.5 text-xs">
+            <HelpCircle className="w-4 h-4 text-slate-400" />
+            Statutory & Legal Disclaimers:
+          </p>
+          <ul className="list-disc list-inside space-y-1 text-[11px] leading-relaxed">
+            {solarResult.disclaimers.map((d, i) => (
+              <li key={i}>{d}</li>
+            ))}
+          </ul>
         </div>
       </div>
 

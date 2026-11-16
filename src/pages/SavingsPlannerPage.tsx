@@ -35,6 +35,7 @@ import {
   Layers,
   HelpCircle,
   Sun,
+  ChevronDown,
 } from 'lucide-react';
 
 export {
@@ -62,6 +63,7 @@ export const SavingsPlannerPage: React.FC = () => {
   const [hasConfirmedBill, setHasConfirmedBill] = useState<boolean>(false);
 
   // New appliance modal / inline adder state
+  // New appliance modal / inline adder state
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [newCategory, setNewCategory] = useState<ApplianceCategory>('ceiling_fan');
   const [newName, setNewName] = useState<string>('');
@@ -69,6 +71,16 @@ export const SavingsPlannerPage: React.FC = () => {
   const [newHours, setNewHours] = useState<number>(8);
   const [newQty, setNewQty] = useState<number>(1);
   const [newTemp, setNewTemp] = useState<number>(20);
+
+  // Recommendations expand/collapse state
+  const [expandedRecs, setExpandedRecs] = useState<Record<string, boolean>>({});
+
+  const toggleRecExpand = (id: string) => {
+    setExpandedRecs((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   // 1. Load shared appliance inventory from IndexedDB on page initialization
   useEffect(() => {
@@ -295,11 +307,88 @@ export const SavingsPlannerPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Grid: Inputs Column & Engine Outputs Column */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* 2. SAVINGS SUMMARY (FULL WIDTH) */}
+      {/* Status Alert for Insufficient Evidence or Invalid Input */}
+      {engineResult.status !== 'success' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-amber-950 space-y-2 shadow-xs">
+          <div className="flex items-start gap-3">
+            <HelpCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-1 text-xs">
+              <p className="font-bold text-sm">
+                {engineResult.status === 'insufficient_evidence'
+                  ? 'Insufficient Evidence for Savings Recommendations'
+                  : 'Input Validation Notice'}
+              </p>
+              <p className="text-amber-900 leading-relaxed">{engineResult.statusMessage}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Aggregated Savings Opportunity Banner (Full Width) */}
+      {engineResult.status === 'success' && (
+        <div className="bg-gradient-to-br from-forest-950 via-forest-900 to-emerald-950 text-white rounded-3xl p-6 sm:p-8 shadow-premium space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              Identified Savings Potential
+            </span>
+            <Badge variant="emerald" size="sm">
+              Tariff: ₹{engineResult.marginalTariffPerKwh}/unit
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+            <div className="bg-forest-900/40 p-4 rounded-2xl border border-forest-800/60">
+              <span className="text-xs text-slate-300 font-medium block">Monthly Energy Reduction</span>
+              <p className="text-2xl sm:text-3xl font-black text-white mt-1">
+                {formatKwh(engineResult.potentialMonthlyKwhSavings)}
+              </p>
+              <p className="text-[11px] text-emerald-300 mt-1 font-semibold">
+                {formatSavingsPercentage(
+                  engineResult.status,
+                  engineResult.monthlyBilledKwh,
+                  engineResult.potentialMonthlyKwhSavings
+                )}
+              </p>
+            </div>
+
+            <div className="bg-forest-900/40 p-4 rounded-2xl border border-forest-800/60">
+              <span className="text-xs text-slate-300 font-medium block">Estimated Monthly Savings</span>
+              <p className="text-2xl sm:text-3xl font-black text-amber-300 mt-1">
+                {formatCurrency(engineResult.potentialMonthlyInrSavings)}
+              </p>
+              <p className="text-[11px] text-emerald-300 mt-1 font-semibold">
+                {formatCurrency(engineResult.potentialMonthlyInrSavings * 12)} / year
+              </p>
+            </div>
+
+            <div className="bg-forest-900/40 p-4 rounded-2xl border border-forest-800/60">
+              <span className="text-xs text-slate-300 font-medium block">Carbon Footprint Saved</span>
+              <p className="text-2xl sm:text-3xl font-black text-emerald-400 mt-1">
+                {formatCO2(engineResult.co2ReductionKgPerMonth / 1000)}
+              </p>
+              <p className="text-[11px] text-slate-300 mt-1">Every month</p>
+            </div>
+
+            <div className="bg-forest-900/40 p-4 rounded-2xl border border-forest-800/60">
+              <span className="text-xs text-slate-300 font-medium block">Viable Retrofit Actions</span>
+              <p className="text-2xl sm:text-3xl font-black text-emerald-200 mt-1">
+                {engineResult.recommendations.filter((r) => r.isWithinBudget).length}
+              </p>
+              <p className="text-[11px] text-slate-300 mt-1">
+                of {engineResult.recommendations.length} within current budget
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. APPLIANCE INVENTORY & CONSUMPTION VISUALIZATION (RESPONSIVE TWO-COLUMN GRID) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Left Column: Input Parameters & Appliance Inventory */}
-        <div className="lg:col-span-5 space-y-6">
-          {/* Bill & Household Baseline */}
+        <div className="space-y-6 min-w-0">
+          {/* Bill Baseline & Household Parameters */}
           <Card className="p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -424,7 +513,7 @@ export const SavingsPlannerPage: React.FC = () => {
                 onClick={() => setShowAddModal(true)}
                 icon={<Plus className="w-3.5 h-3.5 text-emerald-600" />}
               >
-                Add
+                Add Appliance
               </Button>
             </div>
 
@@ -495,78 +584,11 @@ export const SavingsPlannerPage: React.FC = () => {
           </Card>
         </div>
 
-        {/* Right Column: Engine Outputs & Actionable Recommendations */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Status Alert for Insufficient Evidence or Invalid Input */}
-          {engineResult.status !== 'success' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-amber-950 space-y-2">
-              <div className="flex items-start gap-3">
-                <HelpCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div className="space-y-1 text-xs">
-                  <p className="font-bold text-sm">
-                    {engineResult.status === 'insufficient_evidence'
-                      ? 'Insufficient Evidence for Savings Recommendations'
-                      : 'Input Validation Notice'}
-                  </p>
-                  <p className="text-amber-900 leading-relaxed">{engineResult.statusMessage}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Aggregated Savings Opportunity Banner */}
-          {engineResult.status === 'success' && (
-            <div className="bg-gradient-to-br from-forest-950 via-forest-900 to-emerald-950 text-white rounded-3xl p-6 sm:p-8 shadow-premium space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                  Identified Savings Potential
-                </span>
-                <Badge variant="emerald" size="sm">
-                  Tariff: ₹{engineResult.marginalTariffPerKwh}/unit
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
-                <div>
-                  <span className="text-xs text-slate-300 font-medium">Monthly Energy Reduction</span>
-                  <p className="text-3xl font-black text-white mt-0.5">
-                    {formatKwh(engineResult.potentialMonthlyKwhSavings)}
-                  </p>
-                  <p className="text-[11px] text-emerald-300 mt-0.5">
-                    {formatSavingsPercentage(
-                      engineResult.status,
-                      engineResult.monthlyBilledKwh,
-                      engineResult.potentialMonthlyKwhSavings
-                    )}
-                  </p>
-                </div>
-
-                <div>
-                  <span className="text-xs text-slate-300 font-medium">Estimated Monthly Savings</span>
-                  <p className="text-3xl font-black text-amber-300 mt-0.5">
-                    {formatCurrency(engineResult.potentialMonthlyInrSavings)}
-                  </p>
-                  <p className="text-[11px] text-emerald-300 mt-0.5">
-                    {formatCurrency(engineResult.potentialMonthlyInrSavings * 12)} / year
-                  </p>
-                </div>
-
-                <div>
-                  <span className="text-xs text-slate-300 font-medium">Carbon Footprint Saved</span>
-                  <p className="text-3xl font-black text-emerald-400 mt-0.5">
-                    {formatCO2(engineResult.co2ReductionKgPerMonth / 1000)}
-                  </p>
-                  <p className="text-[11px] text-slate-300 mt-0.5">Every month</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Appliance Consumption Breakdown Chart */}
-          {engineResult.applianceBreakdown.length > 0 && (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+        {/* Right Column: Appliance Consumption Breakdown Chart */}
+        <div className="space-y-6 min-w-0">
+          {engineResult.applianceBreakdown.length > 0 ? (
+            <Card className="p-5 sm:p-6 space-y-4">
+              <CardHeader className="p-0 flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Estimated Appliance-Wise Load</CardTitle>
                   <p className="text-xs text-slate-500 mt-0.5">
@@ -577,197 +599,240 @@ export const SavingsPlannerPage: React.FC = () => {
                   {engineResult.applianceBreakdown.length} Categories
                 </Badge>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0 pt-2 space-y-4">
                 <ApplianceConsumptionChart breakdowns={engineResult.applianceBreakdown} />
+
+                {/* Compact Breakdown Mini-Table */}
+                <div className="border border-slate-100 rounded-2xl overflow-hidden text-xs">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 font-semibold text-slate-600">
+                      <tr>
+                        <th className="py-2.5 px-3">Appliance Category</th>
+                        <th className="py-2.5 px-3 text-right">Monthly Energy</th>
+                        <th className="py-2.5 px-3 text-right">Load Share</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {engineResult.applianceBreakdown.map((b, i) => (
+                        <tr key={i} className="hover:bg-slate-50/50">
+                          <td className="py-2.5 px-3 font-medium text-slate-800">{b.name}</td>
+                          <td className="py-2.5 px-3 text-right text-emerald-800 font-bold">{formatKwh(b.monthlyKwh)}</td>
+                          <td className="py-2.5 px-3 text-right text-slate-500 font-semibold">{b.percentageOfTotal}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
+          ) : (
+            <Card className="p-6 text-center text-slate-400">
+              <p className="text-xs">No appliance load data available.</p>
+            </Card>
           )}
+        </div>
+      </div>
 
-          {/* Ranked Recommendations List */}
-          {engineResult.recommendations.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 tracking-tight">
-                    Actionable Energy Saving Recommendations
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Ranked by affordability, expected benefit, and feasibility
-                  </p>
-                </div>
-                <span className="text-xs text-slate-400">
-                  {engineResult.recommendations.length} items
-                </span>
-              </div>
-
-              <div className="space-y-4">
-                {engineResult.recommendations.map((rec) => {
-                  return (
-                    <Card
-                      key={rec.id}
-                      hoverEffect
-                      className={`p-5 transition-all ${
-                        !rec.isWithinBudget ? 'opacity-80 bg-slate-50/60' : 'bg-white'
-                      }`}
-                    >
-                      <div className="space-y-3">
-                        {/* Header & Badges */}
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="space-y-1">
-                            <h4 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
-                              {rec.targetApplianceCategory === 'air_conditioner' && (
-                                <Wind className="w-4 h-4 text-emerald-600" />
-                              )}
-                              {rec.targetApplianceCategory === 'ceiling_fan' && (
-                                <Fan className="w-4 h-4 text-emerald-600" />
-                              )}
-                              {rec.targetApplianceCategory === 'lighting' && (
-                                <Lightbulb className="w-4 h-4 text-emerald-600" />
-                              )}
-                              {rec.targetApplianceCategory === 'water_heater' && (
-                                <Flame className="w-4 h-4 text-emerald-600" />
-                              )}
-                              {rec.targetApplianceCategory === 'television' && (
-                                <Tv className="w-4 h-4 text-emerald-600" />
-                              )}
-                              {!rec.targetApplianceCategory && (
-                                <Layers className="w-4 h-4 text-emerald-600" />
-                              )}
-                              <span>{rec.action}</span>
-                            </h4>
-                          </div>
-
-                          <div className="flex items-center gap-1.5">
-                            {rec.category === 'no_cost' && (
-                              <Badge variant="emerald" size="sm">
-                                Zero Cost Habit
-                              </Badge>
-                            )}
-                            {rec.category === 'low_cost' && (
-                              <Badge variant="blue" size="sm">
-                                Low-Cost Upgrade
-                              </Badge>
-                            )}
-                            {rec.category === 'investment' && (
-                              <Badge variant="amber" size="sm">
-                                Capital Retrofit
-                              </Badge>
-                            )}
-
-                            {rec.isWithinBudget ? (
-                              <Badge variant="emerald" size="sm">
-                                Within Budget
-                              </Badge>
-                            ) : (
-                              <Badge variant="rose" size="sm">
-                                Exceeds ₹{userBudget} Budget
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Rationale (Why generated) */}
-                        <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-700 leading-relaxed border border-slate-100">
-                          <span className="font-bold text-slate-900">Why this action: </span>
-                          {rec.reason}
-                        </div>
-
-                        {/* Impact Metrics Grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                          <div className="p-2.5 bg-emerald-50/70 rounded-xl border border-emerald-100">
-                            <span className="text-[11px] text-emerald-800 font-medium">Monthly Savings</span>
-                            <p className="font-bold text-emerald-950 text-sm">
-                              {formatCurrency(rec.estimatedMonetaryBenefitInr)}
-                            </p>
-                          </div>
-
-                          <div className="p-2.5 bg-emerald-50/70 rounded-xl border border-emerald-100">
-                            <span className="text-[11px] text-emerald-800 font-medium">Energy Reduced</span>
-                            <p className="font-bold text-emerald-950 text-sm">
-                              {formatKwh(rec.estimatedEnergyReductionKwh)}
-                            </p>
-                          </div>
-
-                          <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <span className="text-[11px] text-slate-500 font-medium">Upfront Cost</span>
-                            <p className="font-bold text-slate-800 text-sm">
-                              {rec.upfrontExpenditureInr === 0
-                                ? '₹ 0 (Free)'
-                                : formatCurrency(rec.upfrontExpenditureInr)}
-                            </p>
-                          </div>
-
-                          <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <span className="text-[11px] text-slate-500 font-medium">Payback Period</span>
-                            <p className="font-bold text-slate-800 text-sm">
-                              {rec.paybackPeriodMonths === null
-                                ? 'Immediate'
-                                : `${rec.paybackPeriodMonths} Months`}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Transparent Assumptions & Suggested Step */}
-                        <div className="pt-2 border-t border-slate-100 space-y-2 text-xs">
-                          <div>
-                            <span className="font-semibold text-slate-500 text-[11px]">Calculated Assumptions:</span>
-                            <ul className="list-disc list-inside text-slate-500 text-[11px] space-y-0.5 mt-0.5">
-                              {rec.assumptions.map((asm, idx) => (
-                                <li key={idx}>{asm}</li>
-                              ))}
-                            </ul>
-                          </div>
-
-                          <div className="p-2.5 bg-emerald-50/50 rounded-lg flex items-center justify-between text-xs text-emerald-950">
-                            <span className="font-medium">
-                              <strong>Suggested Next Step:</strong> {rec.suggestedNextStep}
-                            </span>
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 ml-2" />
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Diagnostics Accordion */}
-          {engineResult.diagnostics.length > 0 && (
-            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-xs space-y-2 text-slate-600">
-              <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                <Info className="w-4 h-4 text-slate-400" />
-                Engine Diagnostic Notes:
-              </span>
-              <ul className="list-disc list-inside space-y-1">
-                {engineResult.diagnostics.map((d, i) => (
-                  <li key={i}>{d}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Integration Callout: Rooftop Solar Feasibility */}
-          <div className="bg-gradient-to-r from-emerald-900 to-forest-950 text-white rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Sun className="w-3.5 h-3.5 text-amber-400" />
-                Explore Solar Generation
-              </span>
-              <h4 className="font-bold text-sm sm:text-base text-white">
-                Interested in generating your own solar electricity?
-              </h4>
-              <p className="text-xs text-emerald-100/80 leading-relaxed max-w-xl">
-                Assess your terrace shadow-free area, calculate central subsidies under PM Surya Ghar, and simulate 25-year returns.
+      {/* 4. ACTIONABLE RECOMMENDATIONS (FULL WIDTH) */}
+      {engineResult.recommendations.length > 0 && (
+        <div className="space-y-4 pt-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                Actionable Energy Saving Recommendations
+              </h3>
+              <p className="text-xs text-slate-500">
+                Ranked by affordability, expected benefit, and feasibility across your household inventory
               </p>
             </div>
-            <Link to="/solar" className="shrink-0">
-              <Button size="sm" variant="solar" icon={<Sun className="w-4 h-4" />}>
-                Solar Feasibility Assistant →
-              </Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Badge variant="emerald" size="sm">
+                {engineResult.recommendations.filter((r) => r.isWithinBudget).length} Within Budget
+              </Badge>
+              <span className="text-xs text-slate-400">
+                ({engineResult.recommendations.length} total)
+              </span>
+            </div>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {engineResult.recommendations.map((rec) => {
+              return (
+                <Card
+                  key={rec.id}
+                  hoverEffect
+                  className={`p-5 transition-all min-w-0 ${
+                    !rec.isWithinBudget ? 'opacity-80 bg-slate-50/60' : 'bg-white'
+                  }`}
+                >
+                  <div className="space-y-3">
+                    {/* Header & Badges */}
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                          {rec.targetApplianceCategory === 'air_conditioner' && (
+                            <Wind className="w-4 h-4 text-emerald-600" />
+                          )}
+                          {rec.targetApplianceCategory === 'ceiling_fan' && (
+                            <Fan className="w-4 h-4 text-emerald-600" />
+                          )}
+                          {rec.targetApplianceCategory === 'lighting' && (
+                            <Lightbulb className="w-4 h-4 text-emerald-600" />
+                          )}
+                          {rec.targetApplianceCategory === 'water_heater' && (
+                            <Flame className="w-4 h-4 text-emerald-600" />
+                          )}
+                          {rec.targetApplianceCategory === 'television' && (
+                            <Tv className="w-4 h-4 text-emerald-600" />
+                          )}
+                          {!rec.targetApplianceCategory && (
+                            <Layers className="w-4 h-4 text-emerald-600" />
+                          )}
+                          <span>{rec.action}</span>
+                        </h4>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {rec.category === 'no_cost' && (
+                          <Badge variant="emerald" size="sm">
+                            Zero Cost Habit
+                          </Badge>
+                        )}
+                        {rec.category === 'low_cost' && (
+                          <Badge variant="blue" size="sm">
+                            Low-Cost Upgrade
+                          </Badge>
+                        )}
+                        {rec.category === 'investment' && (
+                          <Badge variant="amber" size="sm">
+                            Capital Retrofit
+                          </Badge>
+                        )}
+
+                        {rec.isWithinBudget ? (
+                          <Badge variant="emerald" size="sm">
+                            Within Budget
+                          </Badge>
+                        ) : (
+                          <Badge variant="rose" size="sm">
+                            Exceeds ₹{userBudget} Budget
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Rationale (Why generated) */}
+                    <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-700 leading-relaxed border border-slate-100">
+                      <span className="font-bold text-slate-900">Why this action: </span>
+                      {rec.reason}
+                    </div>
+
+                    {/* Impact Metrics Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      <div className="p-2.5 bg-emerald-50/70 rounded-xl border border-emerald-100">
+                        <span className="text-[11px] text-emerald-800 font-medium">Monthly Savings</span>
+                        <p className="font-bold text-emerald-950 text-sm">
+                          {formatCurrency(rec.estimatedMonetaryBenefitInr)}
+                        </p>
+                      </div>
+
+                      <div className="p-2.5 bg-emerald-50/70 rounded-xl border border-emerald-100">
+                        <span className="text-[11px] text-emerald-800 font-medium">Energy Reduced</span>
+                        <p className="font-bold text-emerald-950 text-sm">
+                          {formatKwh(rec.estimatedEnergyReductionKwh)}
+                        </p>
+                      </div>
+
+                      <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="text-[11px] text-slate-500 font-medium">Upfront Cost</span>
+                        <p className="font-bold text-slate-800 text-sm">
+                          {rec.upfrontExpenditureInr === 0
+                            ? '₹ 0 (Free)'
+                            : formatCurrency(rec.upfrontExpenditureInr)}
+                        </p>
+                      </div>
+
+                      <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="text-[11px] text-slate-500 font-medium">Payback Period</span>
+                        <p className="font-bold text-slate-800 text-sm">
+                          {rec.paybackPeriodMonths === null
+                            ? 'Immediate'
+                            : `${rec.paybackPeriodMonths} Months`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Transparent Assumptions & Suggested Step */}
+                    <div className="pt-2 border-t border-slate-100 space-y-2 text-xs">
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => toggleRecExpand(rec.id)}
+                          className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 transition-colors"
+                        >
+                          <span>{expandedRecs[rec.id] ? 'Hide Engineering Assumptions' : 'View Engineering Assumptions'}</span>
+                          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedRecs[rec.id] ? 'rotate-180' : ''}`} />
+                        </button>
+                        {expandedRecs[rec.id] && (
+                          <ul className="list-disc list-inside text-slate-500 text-[11px] space-y-1 mt-2 bg-slate-50/80 p-3 rounded-xl border border-slate-200/80">
+                            {rec.assumptions.map((asm, idx) => (
+                              <li key={idx}>{asm}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+
+                      <div className="p-2.5 bg-emerald-50/70 rounded-xl flex items-center justify-between text-xs text-emerald-950 border border-emerald-100">
+                        <span className="font-medium">
+                          <strong className="text-emerald-900">Suggested Action:</strong> {rec.suggestedNextStep}
+                        </span>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 ml-2" />
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 5. ADDITIONAL INFORMATION (FULL WIDTH) */}
+      <div className="space-y-4 pt-2">
+        {/* Diagnostics Accordion */}
+        {engineResult.diagnostics.length > 0 && (
+          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-xs space-y-2 text-slate-600">
+            <span className="font-bold text-slate-800 flex items-center gap-1.5">
+              <Info className="w-4 h-4 text-slate-400" />
+              Engine Diagnostic Notes:
+            </span>
+            <ul className="list-disc list-inside space-y-1">
+              {engineResult.diagnostics.map((d, i) => (
+                <li key={i}>{d}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Integration Callout: Rooftop Solar Feasibility */}
+        <div className="bg-gradient-to-r from-emerald-900 to-forest-950 text-white rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+          <div className="space-y-1">
+            <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Sun className="w-3.5 h-3.5 text-amber-400" />
+              Explore Solar Generation
+            </span>
+            <h4 className="font-bold text-sm sm:text-base text-white">
+              Interested in generating your own solar electricity?
+            </h4>
+            <p className="text-xs text-emerald-100/80 leading-relaxed max-w-xl">
+              Assess your terrace shadow-free area, calculate central subsidies under PM Surya Ghar, and simulate 25-year returns.
+            </p>
+          </div>
+          <Link to="/solar" className="shrink-0">
+            <Button size="sm" variant="solar" icon={<Sun className="w-4 h-4" />}>
+              Solar Feasibility Assistant →
+            </Button>
+          </Link>
         </div>
       </div>
 

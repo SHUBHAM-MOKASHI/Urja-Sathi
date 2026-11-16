@@ -39,6 +39,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
   onSelectForSolarAudit,
 }) => {
   const [expandedVendorQuestions, setExpandedVendorQuestions] = useState<Record<string, boolean>>({});
+  const [visibleVendorIds, setVisibleVendorIds] = useState<string[]>([]);
 
   const toggleQuestions = (id: string) => {
     setExpandedVendorQuestions((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -46,6 +47,11 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
 
   const evalMap = new Map<string, QuotationEvaluation>();
   evaluations.forEach((e) => evalMap.set(e.quotationId, e));
+
+  // Determine displayed quotations (all, or selected subset for mobile 2-way comparison)
+  const displayedQuotations = visibleVendorIds.length > 0
+    ? quotations.filter((q) => visibleVendorIds.includes(q.id))
+    : quotations;
 
   // Determine best values for subtle row highlights
   const minPricePerWp = Math.min(
@@ -55,8 +61,77 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
     ...quotations.map((q) => q.inverterWarrantyYears || 0)
   );
 
+  const toggleVendorFilter = (id: string) => {
+    if (visibleVendorIds.length === 0) {
+      // Switch from all to selecting 2: this one and the top recommendation
+      const otherId = quotations.find((q) => q.id !== id)?.id;
+      setVisibleVendorIds(otherId ? [id, otherId] : [id]);
+    } else if (visibleVendorIds.includes(id)) {
+      if (visibleVendorIds.length <= 1) {
+        setVisibleVendorIds([]); // Reset to all
+      } else {
+        setVisibleVendorIds(visibleVendorIds.filter((vId) => vId !== id));
+      }
+    } else {
+      if (visibleVendorIds.length >= 2) {
+        // Replace second vendor to keep 2-way comparison clean
+        setVisibleVendorIds([visibleVendorIds[0], id]);
+      } else {
+        setVisibleVendorIds([...visibleVendorIds, id]);
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Mobile/Narrow Screen Comparison Filter Bar */}
+      {quotations.length > 2 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
+          <div className="flex items-center gap-2 text-slate-700 font-semibold">
+            <span>Filter Active Columns:</span>
+            <button
+              type="button"
+              onClick={() => setVisibleVendorIds([])}
+              className={`px-2.5 py-1 rounded-lg transition-all ${
+                visibleVendorIds.length === 0
+                  ? 'bg-emerald-700 text-white font-bold shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              All Proposals ({quotations.length})
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-slate-400">Select to compare:</span>
+            {quotations.map((q) => {
+              const isSelected = visibleVendorIds.length === 0 || visibleVendorIds.includes(q.id);
+              return (
+                <button
+                  key={q.id}
+                  type="button"
+                  onClick={() => toggleVendorFilter(q.id)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all max-w-[150px] truncate ${
+                    isSelected
+                      ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-semibold'
+                      : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                  title={q.installerName}
+                >
+                  {q.installerName}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Horizontal Scroll Hint */}
+      <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
+        <span>Detailed Technical Specifications & Red Flags</span>
+        <span className="hidden sm:inline text-slate-400">← Swipe or scroll horizontally to inspect columns →</span>
+      </div>
+
       {/* Scrollable Container with sticky parameter column */}
       <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-sm bg-white">
         <table className="w-full text-left border-collapse min-w-[760px]">
@@ -66,7 +141,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
               <th className="p-4 w-56 min-w-[200px] text-xs font-bold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-50/95 backdrop-blur-sm z-10 border-r border-slate-200">
                 Evaluation Metric
               </th>
-              {quotations.map((quote) => {
+              {displayedQuotations.map((quote) => {
                 const evalData = evalMap.get(quote.id);
                 const isTopRank = evalData?.rank === 1;
 
@@ -180,7 +255,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
             {/* ---------------- SECTION: COMMERCIALS ---------------- */}
             <tr className="bg-slate-100/70">
               <td
-                colSpan={quotations.length + 1}
+                colSpan={displayedQuotations.length + 1}
                 className="py-2 px-4 font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5"
               >
                 <Zap className="h-3.5 w-3.5 text-emerald-600" /> Commercials & Subsidies
@@ -192,7 +267,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
               <td className="p-3.5 font-semibold text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-200">
                 Total Quoted Price
               </td>
-              {quotations.map((q) => (
+              {displayedQuotations.map((q) => (
                 <td key={q.id} className="p-3.5 font-bold text-slate-900 border-r border-slate-200 last:border-r-0">
                   <div className="text-sm">{formatCurrency(q.totalPriceInr)}</div>
                   <div className="text-[11px] text-slate-400 font-normal">Gross vendor proposal</div>
@@ -205,7 +280,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
               <td className="p-3.5 font-semibold text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-200">
                 System Capacity
               </td>
-              {quotations.map((q) => (
+              {displayedQuotations.map((q) => (
                 <td key={q.id} className="p-3.5 font-bold text-slate-900 border-r border-slate-200 last:border-r-0">
                   {q.systemCapacityKw} kW
                 </td>
@@ -218,7 +293,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
                 Price per Watt Peak (₹/Wp)
                 <div className="text-[10px] text-slate-400 font-normal mt-0.5">Benchmark: ~₹58/Wp</div>
               </td>
-              {quotations.map((q) => {
+              {displayedQuotations.map((q) => {
                 const evalData = evalMap.get(q.id);
                 const wp = evalData?.pricePerWattPeak || 0;
                 const isLowest = wp === minPricePerWp && wp > 0;
@@ -254,7 +329,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
                   After PM Surya Ghar Subsidy
                 </div>
               </td>
-              {quotations.map((q) => {
+              {displayedQuotations.map((q) => {
                 const evalData = evalMap.get(q.id);
                 return (
                   <td key={q.id} className="p-3.5 font-black text-emerald-700 text-sm border-r border-slate-200 last:border-r-0">
@@ -267,7 +342,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
             {/* ---------------- SECTION: HARDWARE SPECIFICATIONS ---------------- */}
             <tr className="bg-slate-100/70">
               <td
-                colSpan={quotations.length + 1}
+                colSpan={displayedQuotations.length + 1}
                 className="py-2 px-4 font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5"
               >
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> Hardware Quality & Warranties
@@ -279,7 +354,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
               <td className="p-3.5 font-semibold text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-200">
                 Solar Panel Manufacturer & Model
               </td>
-              {quotations.map((q) => (
+              {displayedQuotations.map((q) => (
                 <td key={q.id} className="p-3.5 border-r border-slate-200 last:border-r-0">
                   <div className="font-bold text-slate-800">{q.panelManufacturer}</div>
                   <div className="text-[11px] text-slate-500">{q.panelModel || 'Standard Module'}</div>
@@ -300,7 +375,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
                   Product vs 25-yr Degradation
                 </div>
               </td>
-              {quotations.map((q) => (
+              {displayedQuotations.map((q) => (
                 <td key={q.id} className="p-3.5 border-r border-slate-200 last:border-r-0 space-y-1">
                   <div>
                     <span className="font-semibold text-slate-700">{q.panelProductWarrantyYears} Years</span>
@@ -319,7 +394,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
               <td className="p-3.5 font-semibold text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-200">
                 Inverter & Inverter Warranty
               </td>
-              {quotations.map((q) => {
+              {displayedQuotations.map((q) => {
                 const isMaxWarranty = q.inverterWarrantyYears === maxInverterWarranty && maxInverterWarranty >= 8;
                 return (
                   <td key={q.id} className="p-3.5 border-r border-slate-200 last:border-r-0">
@@ -347,7 +422,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
               <td className="p-3.5 font-semibold text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-200">
                 Mounting Structure & Workmanship
               </td>
-              {quotations.map((q) => {
+              {displayedQuotations.map((q) => {
                 const isHdg = q.mountingStructureType === 'hot_dip_galvanized' || q.mountingStructureType === 'aluminum';
                 return (
                   <td key={q.id} className="p-3.5 border-r border-slate-200 last:border-r-0 space-y-1">
@@ -370,7 +445,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
             {/* ---------------- SECTION: REGULATORY & SCOPE ---------------- */}
             <tr className="bg-slate-100/70">
               <td
-                colSpan={quotations.length + 1}
+                colSpan={displayedQuotations.length + 1}
                 className="py-2 px-4 font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5"
               >
                 <FileCheck className="h-3.5 w-3.5 text-emerald-600" /> DISCOM Approvals & Liaisoning
@@ -383,7 +458,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
                 Net-Metering Liaisoning Included
                 <div className="text-[10px] text-slate-400 font-normal">DISCOM paperwork & CEIG inspection</div>
               </td>
-              {quotations.map((q) => (
+              {displayedQuotations.map((q) => (
                 <td key={q.id} className="p-3.5 border-r border-slate-200 last:border-r-0">
                   {q.discomNetMeteringLiaisoningIncluded ? (
                     <Badge variant="emerald" size="sm" icon={<CheckCircle2 className="h-3 w-3" />}>
@@ -404,7 +479,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
                 DISCOM Empanelled Vendor
                 <div className="text-[10px] text-slate-400 font-normal">Mandatory for PM Surya Ghar subsidy</div>
               </td>
-              {quotations.map((q) => (
+              {displayedQuotations.map((q) => (
                 <td key={q.id} className="p-3.5 border-r border-slate-200 last:border-r-0">
                   {q.isEmpanelledWithDiscom ? (
                     <Badge variant="emerald" size="sm">
@@ -424,7 +499,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
               <td className="p-3.5 font-semibold text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-200">
                 Estimated Timeline
               </td>
-              {quotations.map((q) => (
+              {displayedQuotations.map((q) => (
                 <td key={q.id} className="p-3.5 border-r border-slate-200 last:border-r-0 font-medium text-slate-800">
                   <span className="flex items-center gap-1.5">
                     <Clock className="h-3.5 w-3.5 text-slate-400" />
@@ -437,7 +512,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
             {/* ---------------- SECTION: SERVICE & MAINTENANCE ---------------- */}
             <tr className="bg-slate-100/70">
               <td
-                colSpan={quotations.length + 1}
+                colSpan={displayedQuotations.length + 1}
                 className="py-2 px-4 font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5"
               >
                 <Wrench className="h-3.5 w-3.5 text-emerald-600" /> After-Sales Service & SLAs
@@ -449,7 +524,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
               <td className="p-3.5 font-semibold text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-200">
                 Free Maintenance / AMC
               </td>
-              {quotations.map((q) => (
+              {displayedQuotations.map((q) => (
                 <td key={q.id} className="p-3.5 border-r border-slate-200 last:border-r-0 font-medium">
                   {q.freeMaintenanceYears > 0 ? (
                     <span className="text-emerald-700 font-semibold">
@@ -472,7 +547,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
               <td className="p-3.5 font-semibold text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-200">
                 Local Service Center & SLA
               </td>
-              {quotations.map((q) => (
+              {displayedQuotations.map((q) => (
                 <td key={q.id} className="p-3.5 border-r border-slate-200 last:border-r-0 space-y-1">
                   <div>
                     {q.hasLocalServiceCenter ? (
@@ -501,7 +576,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
               <td className="p-3.5 font-semibold text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-200">
                 Remote Monitoring App
               </td>
-              {quotations.map((q) => (
+              {displayedQuotations.map((q) => (
                 <td key={q.id} className="p-3.5 border-r border-slate-200 last:border-r-0">
                   {q.hasRemoteMonitoringApp ? (
                     <Badge variant="emerald" size="sm">
@@ -519,7 +594,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
             {/* ---------------- SECTION: AUDIT & RED FLAGS ---------------- */}
             <tr className="bg-slate-100/70">
               <td
-                colSpan={quotations.length + 1}
+                colSpan={displayedQuotations.length + 1}
                 className="py-2 px-4 font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5"
               >
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> Missing Information & Red Flags
@@ -531,7 +606,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
               <td className="p-3.5 font-semibold text-rose-900 sticky left-0 bg-white z-10 border-r border-slate-200">
                 Critical Red Flags
               </td>
-              {quotations.map((q) => {
+              {displayedQuotations.map((q) => {
                 const evalData = evalMap.get(q.id);
                 const hasRedFlags = evalData && evalData.redFlags.length > 0;
 
@@ -564,7 +639,7 @@ export const QuotationComparisonTable: React.FC<QuotationComparisonTableProps> =
               <td className="p-3.5 font-semibold text-amber-900 sticky left-0 bg-white z-10 border-r border-slate-200">
                 Missing / Unverified Details
               </td>
-              {quotations.map((q) => {
+              {displayedQuotations.map((q) => {
                 const evalData = evalMap.get(q.id);
                 const hasMissing = evalData && evalData.missingInformation.length > 0;
 

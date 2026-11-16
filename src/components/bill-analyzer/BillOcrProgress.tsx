@@ -7,6 +7,7 @@ interface BillOcrProgressProps {
   errorMessage?: string | null;
   onRetry?: () => void;
   onCancel?: () => void;
+  onManualEntry?: () => void;
 }
 
 export const BillOcrProgress: React.FC<BillOcrProgressProps> = ({
@@ -14,6 +15,7 @@ export const BillOcrProgress: React.FC<BillOcrProgressProps> = ({
   errorMessage,
   onRetry,
   onCancel,
+  onManualEntry,
 }) => {
   const percent = Math.min(100, Math.round(progress.progress * 100));
 
@@ -28,13 +30,21 @@ export const BillOcrProgress: React.FC<BillOcrProgressProps> = ({
             <h3 className="text-xl font-bold text-slate-900">OCR Processing Interrupted</h3>
             <p className="text-xs text-rose-700 mt-1 max-w-sm mx-auto">{errorMessage}</p>
           </div>
-          <div className="flex justify-center gap-3 pt-2">
+          <div className="flex flex-wrap justify-center gap-3 pt-2">
             {onCancel && (
               <button
                 onClick={onCancel}
                 className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
               >
                 Cancel & Re-upload
+              </button>
+            )}
+            {onManualEntry && (
+              <button
+                onClick={onManualEntry}
+                className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl"
+              >
+                Enter Details Manually
               </button>
             )}
             {onRetry && (

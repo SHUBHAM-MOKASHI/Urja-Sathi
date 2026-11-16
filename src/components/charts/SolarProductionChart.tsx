@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   BarChart,
   Bar,
@@ -15,34 +15,36 @@ interface SolarProductionChartProps {
   monthlyAverageKwh: number;
 }
 
+// Sunlight hours vary by month in India (higher in Mar-May, lower in monsoon Jul-Aug)
+const MONTHLY_FACTORS = [
+  { month: 'Jan', factor: 115 },
+  { month: 'Feb', factor: 125 },
+  { month: 'Mar', factor: 145 },
+  { month: 'Apr', factor: 155 },
+  { month: 'May', factor: 160 },
+  { month: 'Jun', factor: 120 },
+  { month: 'Jul', factor: 90 },
+  { month: 'Aug', factor: 95 },
+  { month: 'Sep', factor: 110 },
+  { month: 'Oct', factor: 130 },
+  { month: 'Nov', factor: 120 },
+  { month: 'Dec', factor: 110 },
+];
+
 export const SolarProductionChart: React.FC<SolarProductionChartProps> = ({
   systemSizeKw,
   monthlyAverageKwh,
 }) => {
-  // Sunlight hours vary by month in India (higher in Mar-May, lower in monsoon Jul-Aug)
-  const monthlyFactors = [
-    { month: 'Jan', factor: 115 },
-    { month: 'Feb', factor: 125 },
-    { month: 'Mar', factor: 145 },
-    { month: 'Apr', factor: 155 },
-    { month: 'May', factor: 160 },
-    { month: 'Jun', factor: 120 },
-    { month: 'Jul', factor: 90 },
-    { month: 'Aug', factor: 95 },
-    { month: 'Sep', factor: 110 },
-    { month: 'Oct', factor: 130 },
-    { month: 'Nov', factor: 120 },
-    { month: 'Dec', factor: 110 },
-  ];
-
-  const data = monthlyFactors.map((m) => {
-    const solarGeneration = Math.round(systemSizeKw * m.factor);
-    return {
-      month: m.month,
-      solarGen: solarGeneration,
-      consumption: Math.round(monthlyAverageKwh * (m.month === 'May' || m.month === 'Jun' ? 1.3 : 0.9)),
-    };
-  });
+  const data = useMemo(() => {
+    return MONTHLY_FACTORS.map((m) => {
+      const solarGeneration = Math.round(systemSizeKw * m.factor);
+      return {
+        month: m.month,
+        solarGen: solarGeneration,
+        consumption: Math.round(monthlyAverageKwh * (m.month === 'May' || m.month === 'Jun' ? 1.3 : 0.9)),
+      };
+    });
+  }, [systemSizeKw, monthlyAverageKwh]);
 
   return (
     <div className="w-full h-64 sm:h-72">

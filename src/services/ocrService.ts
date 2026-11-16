@@ -1,4 +1,4 @@
-import { createWorker, Worker } from 'tesseract.js';
+import type { Worker } from 'tesseract.js';
 import { OcrProgress } from '../types';
 
 export interface PreprocessingOptions {
@@ -177,6 +177,9 @@ export async function runOcrRecognition(
     if (onProgress) {
       onProgress({ status: 'Initializing OCR engine...', progress: 0.1 });
     }
+
+    // Dynamic import to prevent loading Tesseract.js bundle on initial app visit
+    const { createWorker } = await import('tesseract.js');
 
     worker = await createWorker('eng', 1, {
       logger: (m) => {

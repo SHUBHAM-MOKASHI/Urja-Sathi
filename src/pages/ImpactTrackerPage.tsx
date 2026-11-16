@@ -4,11 +4,9 @@ import {
   TrendingUp,
   ShieldCheck,
   Printer,
-  Users,
   Coins,
   FileCheck2,
   BarChart3,
-  Calendar,
   Lock,
   Database,
   FlaskConical,
@@ -182,143 +180,85 @@ export const ImpactTrackerPage: React.FC = () => {
 
   return (
     <div className="space-y-8 pb-12">
-      {/* Top Banner: Mode Indicator & Export */}
+      {/* Consolidated Header & Mode Switcher */}
       <div
-        className={`rounded-2xl p-4 sm:p-5 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-subtle border transition-colors ${
+        className={`rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xl border transition-colors ${
           dataMode === 'demo'
-            ? 'bg-gradient-to-r from-amber-900 via-stone-900 to-forest-900 border-amber-700/50'
-            : 'bg-gradient-to-r from-emerald-900 to-forest-900 border-emerald-700/50'
+            ? 'bg-gradient-to-r from-amber-950 via-stone-900 to-forest-950 border-amber-700/40'
+            : 'bg-gradient-to-r from-forest-950 via-forest-900 to-forest-800 border-emerald-700/40'
         }`}
       >
-        <div className="flex items-center gap-3.5">
-          <div
-            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
-              dataMode === 'demo'
-                ? 'bg-amber-500/20 border-amber-400/30'
-                : 'bg-emerald-500/20 border-emerald-400/30'
-            }`}
-          >
-            {dataMode === 'demo' ? (
-              <FlaskConical className="w-5 h-5 text-amber-300" />
-            ) : (
-              <Database className="w-5 h-5 text-emerald-300" />
-            )}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-white text-sm sm:text-base tracking-tight">
-                URJA SAATHI Impact & Verification Engine
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-3 max-w-3xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase bg-white/10 backdrop-blur-sm border border-white/20 text-emerald-300">
+                Har Ghar Bachat, Har Haath Kaam
               </span>
               {dataMode === 'demo' ? (
-                <Badge variant="amber" size="sm">
-                  SAMPLE / DEMONSTRATION
+                <Badge variant="amber" size="sm" icon={<FlaskConical className="w-3.5 h-3.5" />}>
+                  DEMONSTRATION DATA (SIMULATED)
                 </Badge>
               ) : (
-                <Badge variant="emerald" size="sm">
-                  LIVE LOCAL DATA
+                <Badge variant="emerald" size="sm" icon={<Database className="w-3.5 h-3.5" />}>
+                  LIVE LOCAL RECORDS (AUDITED)
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-emerald-100/90 mt-0.5">
-              {dataMode === 'demo'
-                ? 'Demonstration Data — Simulated for Hackathon Audit Verification & Field Evaluation'
-                : 'Live Local Records — Empirically Audited from your Local IndexedDB Archive'}
-            </p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setIsReportModalOpen(true)}
-            icon={<Printer className="w-4 h-4" />}
-            className="bg-white/10 hover:bg-white/20 text-white border-white/20"
-          >
-            Export Audit Report
-          </Button>
-        </div>
-      </div>
-
-      {/* Hero Header & Mode Switcher */}
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase bg-emerald-100 text-emerald-900 border border-emerald-200">
-              Har Ghar Bachat, Har Haath Kaam
-            </span>
-            <span className="text-xs text-slate-500 flex items-center gap-1 font-mono">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              Audit Cycle: Q3/Q4 FY 2025-26
-            </span>
-          </div>
-
-          {/* MODE TOGGLE SWITCH */}
-          <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-200/90 shadow-inner">
-            <button
-              type="button"
-              onClick={() => setDataMode('demo')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                dataMode === 'demo'
-                  ? 'bg-amber-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <FlaskConical className="w-3.5 h-3.5" />
-              <span>Demonstration Audit Data</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono uppercase ${
-                  dataMode === 'demo' ? 'bg-amber-800 text-amber-100' : 'bg-slate-200 text-slate-600'
-                }`}
-              >
-                Sample
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setDataMode('live')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                dataMode === 'live'
-                  ? 'bg-emerald-700 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Database className="w-3.5 h-3.5" />
-              <span>Live Local Records</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono uppercase ${
-                  dataMode === 'live' ? 'bg-emerald-900 text-emerald-200' : 'bg-slate-200 text-slate-600'
-                }`}
-              >
-                Audited
-              </span>
-            </button>
-          </div>
-        </div>
-
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white">
               Savings-to-Skills Feedback & Impact Tracker
             </h1>
-            <p className="text-sm text-slate-600 max-w-3xl leading-relaxed mt-1">
-              Tracking whether clean-energy intelligence leads to genuine real-world outcomes.
-              We empirically measure kilowatt-hour reductions from OCR utility bills and verify
-              direct wage disbursements to local certified technicians—without inflated greenwashing.
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal">
+              {dataMode === 'demo'
+                ? 'Displaying simulated demonstration records for hackathon evaluation and field validation. We empirically separate measured utility drops from engineering estimations to prevent greenwashing.'
+                : 'Displaying authentic records audited strictly from your local IndexedDB storage. No simulated metrics or fake zeros are introduced when data is missing.'}
             </p>
           </div>
 
-          <div className="shrink-0 flex items-center gap-2">
+          {/* Action & Mode Selector Controls */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+            {/* Mode Switcher Segmented Control */}
+            <div className="bg-black/30 backdrop-blur-md p-1.5 rounded-2xl border border-white/20 flex items-center">
+              <button
+                type="button"
+                onClick={() => setDataMode('demo')}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  dataMode === 'demo'
+                    ? 'bg-amber-600 text-white shadow-md'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <FlaskConical className="w-3.5 h-3.5" />
+                <span>Demo Data</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDataMode('live')}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  dataMode === 'live'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <Database className="w-3.5 h-3.5" />
+                <span>Live Records</span>
+              </button>
+            </div>
+
             <Button
-              variant="primary"
-              size="md"
+              variant="secondary"
+              size="sm"
               onClick={() => setIsReportModalOpen(true)}
-              icon={<FileCheck2 className="w-4 h-4 text-emerald-100" />}
+              icon={<Printer className="w-4 h-4 text-emerald-400" />}
+              className="bg-white/10 hover:bg-white/20 text-white border-white/20 shadow-xs"
             >
-              Print / Save Dossier (PDF)
+              Export Report
             </Button>
           </div>
         </div>
+
+        {/* Decorative background glow */}
+        <div className="absolute -right-12 -top-12 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
       </div>
 
       {/* LIVE EMPTY STATE (Shown only in live mode when no records exist) */}
@@ -406,7 +346,7 @@ export const ImpactTrackerPage: React.FC = () => {
         </div>
       ) : (
         <>
-          {/* Top 4 KPI Stat Cards */}
+          {/* Top 4 KPI Stat Cards (Prioritizing Consenting Households, Observed Reduction, Completed Services, Documented Wages) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             <StatCard
               title="Consenting Households"
@@ -420,9 +360,20 @@ export const ImpactTrackerPage: React.FC = () => {
               }}
             />
             <StatCard
-              title="Completed Field Services"
+              title="Observed Consumption Reduction"
+              value={`${tripartiteSummary.measuredImpact.totalVerifiedSavingsKwhMonthly.toLocaleString()} kWh/mo`}
+              subtitle={dataMode === 'demo' ? 'Measured from OCR utility bills' : 'Empirical utility bill drop'}
+              icon={<TrendingUp className="w-5 h-5 text-emerald-600" />}
+              trend={{
+                value: `₹${tripartiteSummary.measuredImpact.totalVerifiedSavingsInrMonthly.toLocaleString()}/mo`,
+                isPositive: true,
+                label: 'Verified Savings',
+              }}
+            />
+            <StatCard
+              title="Completed Eligible Services"
               value={`${totalCompletedServices} Jobs`}
-              subtitle={dataMode === 'demo' ? 'Assisted Interventions' : 'Completed Assignments'}
+              subtitle={dataMode === 'demo' ? `${totalActiveWorkers} Specialists Active` : `${totalActiveWorkers} Verified Technicians`}
               icon={<FileCheck2 className="w-5 h-5 text-sky-600" />}
               trend={{
                 value: dataMode === 'demo' ? '+28 jobs' : `${totalCompletedServices} Jobs`,
@@ -431,18 +382,7 @@ export const ImpactTrackerPage: React.FC = () => {
               }}
             />
             <StatCard
-              title="Certified Active Workers"
-              value={`${totalActiveWorkers} Specialists`}
-              subtitle={dataMode === 'demo' ? 'Wiremen & Surya Mitras' : 'Registered Technicians'}
-              icon={<Users className="w-5 h-5 text-indigo-600" />}
-              trend={{
-                value: dataMode === 'demo' ? '100%' : `${totalActiveWorkers} Active`,
-                isPositive: true,
-                label: 'Verified',
-              }}
-            />
-            <StatCard
-              title="Documented Paid Wages"
+              title="Documented Worker Earnings"
               value={`₹${totalDocumentedPaidAssignmentsInr.toLocaleString()}`}
               subtitle={dataMode === 'demo' ? 'Direct Local Livelihoods' : 'Empirical Wage Receipts'}
               icon={<Coins className="w-5 h-5 text-amber-600" />}

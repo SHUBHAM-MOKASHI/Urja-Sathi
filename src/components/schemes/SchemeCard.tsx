@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   FileCheck,
   Building,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface SchemeCardProps {
@@ -28,17 +29,17 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({ scheme, onOpenDetails })
   const getCategoryIcon = () => {
     switch (scheme.category) {
       case 'rooftop_solar':
-        return <Sun className="h-5 w-5 text-amber-500" />;
+        return <Sun className="h-4 w-4 text-amber-500" />;
       case 'solar_pumps':
-        return <Droplets className="h-5 w-5 text-sky-500" />;
+        return <Droplets className="h-4 w-4 text-sky-500" />;
       case 'appliance_efficiency':
-        return <Zap className="h-5 w-5 text-emerald-500" />;
+        return <Zap className="h-4 w-4 text-emerald-500" />;
       case 'solar_water_heater':
-        return <Flame className="h-5 w-5 text-orange-500" />;
+        return <Flame className="h-4 w-4 text-orange-500" />;
       case 'battery_storage':
-        return <BatteryCharging className="h-5 w-5 text-purple-500" />;
+        return <BatteryCharging className="h-4 w-4 text-purple-500" />;
       default:
-        return <Sun className="h-5 w-5 text-emerald-600" />;
+        return <Sun className="h-4 w-4 text-emerald-600" />;
     }
   };
 
@@ -59,13 +60,22 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({ scheme, onOpenDetails })
     }
   };
 
+  // Extract official portal domain safely
+  let officialDomain = 'Official Portal';
+  try {
+    const url = new URL(scheme.officialApplicationUrl);
+    officialDomain = url.hostname.replace('www.', '');
+  } catch {
+    officialDomain = scheme.administeringAgency;
+  }
+
   return (
     <div
-      className={`rounded-3xl border bg-white p-5 sm:p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-5 ${
+      className={`rounded-3xl border bg-white p-5 sm:p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4 ${
         isOutdated ? 'border-amber-300/80 bg-amber-50/10' : 'border-slate-200/90'
       }`}
     >
-      <div className="space-y-4">
+      <div className="space-y-3.5">
         {/* Top Badges */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -92,7 +102,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({ scheme, onOpenDetails })
 
         {/* Title & Tagline */}
         <div>
-          <h3 className="text-lg font-bold text-slate-900 tracking-tight leading-snug">
+          <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-snug">
             {scheme.name}
           </h3>
           <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">
@@ -100,11 +110,29 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({ scheme, onOpenDetails })
           </p>
         </div>
 
-        {/* Administering Agency & Gazette Notification */}
+        {/* Preliminary Eligibility Status Pill */}
+        <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-start gap-2 text-xs">
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <span className="font-bold text-emerald-900 block text-[11px]">
+              Potentially Eligible (Subject to Document & DISCOM Audit)
+            </span>
+            <span className="text-[10px] text-emerald-800/80 block leading-tight">
+              Preliminary guidance only. Final subsidy approval requires formal portal sanction.
+            </span>
+          </div>
+        </div>
+
+        {/* Administering Agency & Source Link */}
         <div className="text-[11px] text-slate-500 space-y-1 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-          <div className="flex items-center gap-1.5 font-medium text-slate-700">
-            <Building className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-            <span className="truncate">{scheme.administeringAgency}</span>
+          <div className="flex items-center justify-between gap-1.5 font-medium text-slate-700">
+            <div className="flex items-center gap-1.5 truncate">
+              <Building className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              <span className="truncate">{scheme.administeringAgency}</span>
+            </div>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-100/70 text-emerald-800 shrink-0">
+              {officialDomain}
+            </span>
           </div>
           {scheme.gazetteNotificationNumber && (
             <div className="text-[10px] text-slate-400 truncate">
@@ -114,8 +142,8 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({ scheme, onOpenDetails })
         </div>
 
         {/* Subsidy Slabs Preview */}
-        <div className="space-y-2">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+        <div className="space-y-1.5">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
             Financial Assistance Structure
           </span>
           <div className="space-y-1.5">
@@ -131,12 +159,29 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({ scheme, onOpenDetails })
               </div>
             ))}
             {scheme.slabs.length > 3 && (
-              <span className="text-[11px] text-slate-400 font-medium pl-1 block">
+              <span className="text-[10px] text-slate-400 font-medium pl-1 block">
                 + {scheme.slabs.length - 3} more category slabs (RWA/Group Housing)
               </span>
             )}
           </div>
         </div>
+
+        {/* Key Eligibility Conditions Preview */}
+        {scheme.eligibilityCriteria && scheme.eligibilityCriteria.length > 0 && (
+          <div className="space-y-1 text-xs">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              Key Eligibility Conditions
+            </span>
+            <ul className="space-y-1 text-[11px] text-slate-600">
+              {scheme.eligibilityCriteria.slice(0, 2).map((crit) => (
+                <li key={crit.id} className="flex items-start gap-1.5 leading-snug">
+                  <span className="text-emerald-600 font-bold">•</span>
+                  <span>{crit.label}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Outdated Warning Notice Alert */}
         {isOutdated && (
@@ -160,7 +205,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({ scheme, onOpenDetails })
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 transition-colors hover:underline"
-          title="Opens authorized government portal"
+          title="Opens authorized government portal (.gov.in)"
         >
           <span>Official Portal</span>
           <ExternalLink className="h-3 w-3" />
@@ -173,9 +218,10 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({ scheme, onOpenDetails })
           icon={<FileCheck className="h-3.5 w-3.5" />}
           className="w-full sm:w-auto"
         >
-          Eligibility & Checklist
+          View Details & Checklist
         </Button>
       </div>
     </div>
   );
 };
+
