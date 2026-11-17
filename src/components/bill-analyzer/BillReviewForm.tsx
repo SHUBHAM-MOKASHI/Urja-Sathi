@@ -98,7 +98,17 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
     }
   }, [consumerNumber, billDate, billingPeriod, unitsConsumed, totalAmount, existingBills]);
 
-  const getConfidenceBadge = (confidence: number, hasValue: boolean) => {
+  const getFieldBadge = (confidence: number, hasValue: boolean, isMandatory: boolean = false) => {
+    if (source === 'manual') {
+      if (hasValue) {
+        return <Badge variant="emerald" size="sm">Entered</Badge>;
+      }
+      return isMandatory ? (
+        <Badge variant="amber" size="sm">Required</Badge>
+      ) : (
+        <Badge variant="slate" size="sm">Optional</Badge>
+      );
+    }
     if (!hasValue || confidence === 0) {
       return (
         <Badge variant="rose" size="sm">
@@ -119,6 +129,8 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
       </Badge>
     );
   };
+
+  const getConfidenceBadge = (confidence: number, hasValue: boolean) => getFieldBadge(confidence, hasValue, false);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,8 +180,8 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
       currentReading: typeof currentReading === 'number' ? currentReading : undefined,
       isPeakSeason: false,
       source,
-      ocrConfidence: parsedData.overallConfidence,
-      rawOcrText: parsedData.normalizedText,
+      ocrConfidence: source === 'manual' ? undefined : parsedData.overallConfidence,
+      rawOcrText: source === 'manual' ? undefined : parsedData.normalizedText,
       isDuplicate: !!duplicateWarning,
       userEdited: Object.entries({consumerName,consumerNumber,totalAmount,unitsConsumed,billingPeriod,previousReading,currentReading,billDate,dueDate})
         .some(([key,value]) => value !== ((parsedData[key as keyof ParsedBillData] as {value: unknown}).value ?? '')),
@@ -190,30 +202,40 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-              Verify & Confirm Extracted Bill Data
+              {source === 'manual' ? 'Enter Electricity Bill Details' : 'Verify & Confirm Extracted Bill Data'}
             </h2>
-            <Badge variant="emerald" size="sm">
-              Extraction score: {parsedData.overallConfidence}/100 (heuristic)
-            </Badge>
+            {source === 'manual' ? (
+              <Badge variant="blue" size="sm">
+                Direct Manual Entry
+              </Badge>
+            ) : (
+              <Badge variant="emerald" size="sm">
+                Extraction score: {parsedData.overallConfidence}/100 (heuristic)
+              </Badge>
+            )}
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Review every field below. You can correct any values before saving to your offline database.
+            {source === 'manual'
+              ? 'Enter your electricity bill details below. Mandatory: Units (kWh), Total Amount (₹), and Bill Date.'
+              : 'Review every field below. You can correct any values before saving to your offline database.'}
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowRawOcr(!showRawOcr)}
-          className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 self-start sm:self-auto flex items-center gap-1"
-        >
-          <FileText className="w-3.5 h-3.5" />
-          <span>{showRawOcr ? 'Hide Raw OCR Text' : 'View Raw OCR Text'}</span>
-        </button>
+        {source !== 'manual' && Boolean(parsedData.normalizedText) && (
+          <button
+            type="button"
+            onClick={() => setShowRawOcr(!showRawOcr)}
+            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 self-start sm:self-auto flex items-center gap-1"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>{showRawOcr ? 'Hide Raw OCR Text' : 'View Raw OCR Text'}</span>
+          </button>
+        )}
       </div>
 
       <div className="p-4 bg-amber-50 rounded-xl text-sm space-y-2">
         <p>Human review is required. Scores are heuristics, not measured accuracy. Source: {source === 'sample' ? 'Demonstration bill' : source === 'manual' ? 'Manual entry' : 'Uploaded bill'}.</p>
-        {[...parsedData.warnings, ...validationWarnings].map((warning, i) => <p key={i}>{warning}</p>)}
+        {(source === 'manual' ? validationWarnings : [...parsedData.warnings, ...validationWarnings]).map((warning, i) => <p key={i}>{warning}</p>)}
         {ambiguousFields.map(([name, field]) => <div key={name}>
           <strong>{name}: ambiguous candidates</strong>
           <ul>{(field as ParsedBillData['totalAmount']).candidates?.map((candidate,i) => <li key={i}>{candidate.rawMatch} → {String(candidate.value)}</li>)}</ul>
@@ -300,7 +322,7 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
                     <CreditCard className="w-3.5 h-3.5 text-emerald-700" />
                     Total Bill Amount (₹) *
                   </label>
-                  {getConfidenceBadge(parsedData.totalAmount.confidence, totalAmount !== '')}
+                  {getFieldBadge(parsedData.totalAmount.confidence, totalAmount !== '', true)}
                 </div>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-500">₹</span>
@@ -325,7 +347,7 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
                     <Zap className="w-3.5 h-3.5 text-emerald-700" />
                     Units Consumed (kWh) *
                   </label>
-                  {getConfidenceBadge(parsedData.unitsConsumed.confidence, unitsConsumed !== '')}
+                  {getFieldBadge(parsedData.unitsConsumed.confidence, unitsConsumed !== '', true)}
                 </div>
                 <div className="relative">
                   <input
@@ -438,9 +460,9 @@ export const BillReviewForm: React.FC<BillReviewFormProps> = ({
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-medium text-slate-700 flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                    Bill Date
+                    Bill Date *
                   </label>
-                  {getConfidenceBadge(parsedData.billDate.confidence, !!billDate)}
+                  {getFieldBadge(parsedData.billDate.confidence, !!billDate, true)}
                 </div>
                 <input
                   type="date"

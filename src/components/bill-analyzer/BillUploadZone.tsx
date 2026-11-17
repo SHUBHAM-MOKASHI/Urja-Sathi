@@ -1,15 +1,19 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileImage, Sparkles, AlertCircle, Info, ShieldCheck } from 'lucide-react';
+import { UploadCloud, FileImage, Sparkles, AlertCircle, Info, ShieldCheck, FileText } from 'lucide-react';
+import { Button } from '../common/Button';
+import { Badge } from '../common/Badge';
 import { validateBillFile, validateBillFileSignature } from '../../services/billValidation';
 import { SAMPLE_BILLS, createSampleBillFile, SampleBillOption } from '../../data/sampleBillImages';
 
 interface BillUploadZoneProps {
   onFileSelected: (file: File, source?: 'ocr_scan' | 'sample') => void;
+  onDirectManualEntry?: () => void;
   isLoadingSample?: boolean;
 }
 
 export const BillUploadZone: React.FC<BillUploadZoneProps> = ({
   onFileSelected,
+  onDirectManualEntry,
   isLoadingSample = false,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -95,15 +99,20 @@ export const BillUploadZone: React.FC<BillUploadZoneProps> = ({
           </div>
 
           <div>
-            <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-              {isValidatingSignature ? 'Verifying File Security...' : 'Upload Electricity Bill'}
-            </h3>
+            <div className="flex items-center justify-center gap-2">
+              <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+                {isValidatingSignature ? 'Verifying File Security...' : 'Upload Electricity Bill'}
+              </h3>
+              <Badge variant="amber" size="sm">
+                Beta
+              </Badge>
+            </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
               {isValidatingSignature ? (
                 'Checking binary magic bytes for security integrity...'
               ) : (
                 <>
-                  Drag & drop your bill photo here, or <span className="text-emerald-700 font-semibold underline">browse files</span>
+                  Drag & drop your bill photo here, or <span className="text-emerald-700 font-semibold underline">browse files</span>. On-device local OCR requires user review.
                 </>
               )}
             </p>
@@ -124,6 +133,34 @@ export const BillUploadZone: React.FC<BillUploadZoneProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Direct Manual Entry Alternative Banner */}
+      {onDirectManualEntry && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-white border border-slate-200/90 rounded-2xl shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-900">
+                Prefer to enter bill details directly?
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Skip image upload and camera processing. Key in your units consumed, bill amount, and date directly.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onDirectManualEntry}
+            icon={<FileText className="w-3.5 h-3.5" />}
+          >
+            Enter Manually
+          </Button>
+        </div>
+      )}
 
       {/* Validation Error Banner */}
       {validationError && (

@@ -35,15 +35,20 @@ import {
 
 type AnalyzerTab = 'ocr_scan' | 'manual_calc' | 'history';
 type OcrStep = 'upload' | 'preview' | 'processing' | 'review' | 'success';
+type EntryMode = 'scan' | 'manual';
 
 export const BillAnalyzerPage: React.FC = () => {
   const { showNotification } = useNotification();
   const { refreshCounters, updateUserProfile } = useApp();
 
   const [activeTab, setActiveTab] = useState<AnalyzerTab>('ocr_scan');
+  const [entryMode, setEntryMode] = useState<EntryMode>('scan');
   const [ocrStep, setOcrStep] = useState<OcrStep>('upload');
 
   const ocrController = useRef<AbortController | null>(null);
+  const entryModeRef = useRef<EntryMode>('scan');
+  entryModeRef.current = entryMode;
+
   const [billSource, setBillSource] = useState<ElectricityBill['source']>('ocr_scan');
   const cancelOcr = () => { ocrController.current?.abort(); ocrController.current = null; };
   useEffect(() => () => { ocrController.current?.abort(); }, []);
@@ -105,16 +110,19 @@ export const BillAnalyzerPage: React.FC = () => {
 
     try {
       const result = await runOcrRecognition(canvas, (progress) => {
-        if (!controller.signal.aborted) setOcrProgress(progress);
+        if (!controller.signal.aborted && ocrController.current === controller && entryModeRef.current === 'scan') {
+          setOcrProgress(progress);
+        }
       }, controller.signal);
-      if (controller.signal.aborted || ocrController.current !== controller) return;
+      if (controller.signal.aborted || ocrController.current !== controller || entryModeRef.current !== 'scan') return;
 
       // Parse fields using our specialized Indian Discom heuristics
       const parsed = parseElectricityBill(result.text, result.confidence);
+      if (controller.signal.aborted || ocrController.current !== controller || entryModeRef.current !== 'scan') return;
       setParsedBillData(parsed);
       setOcrStep('review');
     } catch (err: unknown) {
-      if (controller.signal.aborted || ocrController.current !== controller) return;
+      if (controller.signal.aborted || ocrController.current !== controller || entryModeRef.current !== 'scan') return;
       console.error('Tesseract OCR error:', err);
       const message = err instanceof Error ? err.message : 'Character recognition could not process the image.';
       setOcrError(message);
@@ -163,7 +171,7 @@ export const BillAnalyzerPage: React.FC = () => {
     }
   };
 
-  // Reset OCR flow
+  // Reset flow to initial screen
   const handleResetOcr = () => {
     cancelOcr();
     setOcrError(null);
@@ -172,15 +180,33 @@ export const BillAnalyzerPage: React.FC = () => {
     setParsedBillData(null);
     setSavedBillResult(null);
     setOcrStep('upload');
+    setEntryMode('scan');
   };
 
-  // Graceful offline fallback: allow manual review if OCR is interrupted
-  const handleProceedToManualReview = () => {
+  // Switch to Direct Manual Entry Mode immediately (no Tesseract, no file upload)
+  const handleSelectManualMode = () => {
     cancelOcr();
-    if (billSource !== 'sample') setBillSource('manual');
+    setEntryMode('manual');
+    setBillSource('manual');
+    setSelectedFile(null);
+    setBillPreviewUrl('');
+    setOcrError(null);
     const emptyParsed = parseElectricityBill('', 0);
     setParsedBillData(emptyParsed);
     setOcrStep('review');
+  };
+
+  // Switch to Scan Bill (Beta) Mode
+  const handleSelectScanMode = () => {
+    cancelOcr();
+    setEntryMode('scan');
+    setBillSource('ocr_scan');
+    setOcrError(null);
+    if (!selectedFile) {
+      setParsedBillData(null);
+      setBillPreviewUrl('');
+      setOcrStep('upload');
+    }
   };
 
   // Manual Calculator Save
@@ -267,16 +293,124 @@ export const BillAnalyzerPage: React.FC = () => {
         </div>
       </div>
 
-      {/* TAB 1: OCR BILL SCANNER WIZARD */}
+      {/* TAB 1: OCR BILL SCANNER WIZARD / DIRECT MANUAL ENTRY */}
       {activeTab === 'ocr_scan' && (
         <div className="space-y-6">
-          {/* Step 1: Upload Zone */}
-          {ocrStep === 'upload' && (
-            <BillUploadZone onFileSelected={handleFileSelected} />
+          {/* Initial / Active Mode Selector: Scan Bill (Beta) vs Enter Manually */}
+          {ocrStep !== 'success' && (
+            <div className="bg-white border border-slate-200/90 rounded-3xl p-3.5 sm:p-4 shadow-subtle space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 px-1">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Bill Entry Mode
+                  </span>
+                  <p className="text-xs text-slate-600">
+                    Choose how you want to input your electricity bill:
+                  </p>
+                </div>
+                {entryMode === 'scan' ? (
+                  <Badge variant="amber" size="sm">
+                    OCR Scan Mode (Beta)
+                  </Badge>
+                ) : (
+                  <Badge variant="blue" size="sm">
+                    Direct Manual Mode
+                  </Badge>
+                )}
+              </div>
+
+              <div
+                className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1"
+                role="radiogroup"
+                aria-label="Bill Entry Mode Selection"
+              >
+                {/* Option 1: Scan Bill (Beta) */}
+                <button
+                  type="button"
+                  id="btn-mode-scan"
+                  role="radio"
+                  aria-checked={entryMode === 'scan'}
+                  onClick={handleSelectScanMode}
+                  className={`flex items-start gap-3.5 p-4 rounded-2xl border transition-all text-left group ${
+                    entryMode === 'scan'
+                      ? 'bg-emerald-50/60 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
+                      : 'bg-slate-50/70 border-slate-200 hover:bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div
+                    className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${
+                      entryMode === 'scan'
+                        ? 'bg-emerald-600 text-white shadow-premium'
+                        : 'bg-white text-slate-600 border border-slate-200 group-hover:text-emerald-700'
+                    }`}
+                  >
+                    <ScanLine className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-sm text-slate-900 group-hover:text-emerald-950">
+                        Scan Bill (Beta)
+                      </span>
+                      <Badge variant="amber" size="sm">
+                        Beta
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      Upload or photo a paper bill. On-device local OCR extracts data (requires human verification).
+                    </p>
+                  </div>
+                </button>
+
+                {/* Option 2: Enter Manually */}
+                <button
+                  type="button"
+                  id="btn-mode-manual"
+                  role="radio"
+                  aria-checked={entryMode === 'manual'}
+                  onClick={handleSelectManualMode}
+                  className={`flex items-start gap-3.5 p-4 rounded-2xl border transition-all text-left group ${
+                    entryMode === 'manual'
+                      ? 'bg-emerald-50/60 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
+                      : 'bg-slate-50/70 border-slate-200 hover:bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div
+                    className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${
+                      entryMode === 'manual'
+                        ? 'bg-emerald-600 text-white shadow-premium'
+                        : 'bg-white text-slate-600 border border-slate-200 group-hover:text-emerald-700'
+                    }`}
+                  >
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-sm text-slate-900 group-hover:text-emerald-950">
+                        Enter Manually
+                      </span>
+                      <Badge variant="emerald" size="sm">
+                        Direct & Fast
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      Directly enter units consumed, bill amount, and date. No camera or OCR waiting required.
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
           )}
 
-          {/* Step 2: Image Preview & Confirmation */}
-          {ocrStep === 'preview' && selectedFile && (
+          {/* Scan Mode Step 1: Upload Zone */}
+          {entryMode === 'scan' && ocrStep === 'upload' && (
+            <BillUploadZone
+              onFileSelected={handleFileSelected}
+              onDirectManualEntry={handleSelectManualMode}
+            />
+          )}
+
+          {/* Scan Mode Step 2: Image Preview & Confirmation */}
+          {entryMode === 'scan' && ocrStep === 'preview' && selectedFile && (
             <BillImagePreview
               file={selectedFile}
               onConfirmAnalysis={handleConfirmStartOcr}
@@ -284,8 +418,8 @@ export const BillAnalyzerPage: React.FC = () => {
             />
           )}
 
-          {/* Step 3: Tesseract.js Processing State */}
-          {ocrStep === 'processing' && (
+          {/* Scan Mode Step 3: Tesseract.js Processing State */}
+          {entryMode === 'scan' && ocrStep === 'processing' && (
             <BillOcrProgress
               progress={ocrProgress}
               errorMessage={ocrError}
@@ -294,16 +428,16 @@ export const BillAnalyzerPage: React.FC = () => {
                 if (selectedFile) setOcrStep('preview');
               }}
               onCancel={handleResetOcr}
-              onManualEntry={handleProceedToManualReview}
+              onManualEntry={handleSelectManualMode}
             />
           )}
 
-          {/* Step 4: Verification & Manual Correction Form */}
-          {ocrStep === 'review' && parsedBillData && (
+          {/* Form Step: Verification / Direct Manual Entry Form */}
+          {ocrStep === 'review' && (parsedBillData || entryMode === 'manual') && (
             <BillReviewForm
-              parsedData={parsedBillData}
+              parsedData={parsedBillData || parseElectricityBill('', 0)}
               source={billSource}
-              billImagePreviewUrl={billPreviewUrl}
+              billImagePreviewUrl={entryMode === 'scan' ? billPreviewUrl : undefined}
               onConfirmSave={handleSaveConfirmedBill}
               onCancel={handleResetOcr}
             />
@@ -347,6 +481,9 @@ export const BillAnalyzerPage: React.FC = () => {
                 <div className="flex flex-wrap justify-center items-center gap-3 pt-2">
                   <Button variant="ghost" size="sm" onClick={handleResetOcr}>
                     Scan Another Bill
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleSelectManualMode}>
+                    Enter Another Bill Manually
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => setActiveTab('history')}>
                     View Stored Bills ({savedBills.length})
@@ -550,11 +687,16 @@ export const BillAnalyzerPage: React.FC = () => {
                   <FileText className="w-12 h-12 text-slate-300 mx-auto" />
                   <p className="text-sm font-semibold text-slate-700">No electricity bills saved yet.</p>
                   <p className="text-xs text-slate-500">
-                    Scan your first bill using OCR or add a manual entry to start tracking trends.
+                    Scan your first bill using OCR or enter your bill details directly to start tracking trends.
                   </p>
-                  <Button size="sm" variant="primary" onClick={() => setActiveTab('ocr_scan')}>
-                    Scan Bill with OCR
-                  </Button>
+                  <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                    <Button size="sm" variant="primary" onClick={() => { setActiveTab('ocr_scan'); handleSelectScanMode(); }}>
+                      Scan Bill (Beta)
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setActiveTab('ocr_scan'); handleSelectManualMode(); }}>
+                      Enter Manually
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -593,7 +735,7 @@ export const BillAnalyzerPage: React.FC = () => {
                                 OCR Scan {b.ocrConfidence ? `(${b.ocrConfidence}%)` : ''}
                               </Badge>
                             ) : (
-                              <Badge variant="slate" size="sm">
+                              <Badge variant={b.source === 'manual' ? 'blue' : 'slate'} size="sm">
                                 {b.source === 'manual' ? 'Manual' : 'Sample'}
                               </Badge>
                             )}
