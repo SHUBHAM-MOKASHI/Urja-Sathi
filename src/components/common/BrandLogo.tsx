@@ -9,14 +9,16 @@ export interface BrandLogoProps {
   className?: string;
   showTagline?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  onClick?: () => void;
 }
 
 export const BrandLogo: React.FC<BrandLogoProps> = ({
   collapsed = false,
-  to = '/dashboard',
+  to = '/',
   className,
   showTagline = true,
   size = 'md',
+  onClick,
 }) => {
   const sizeClasses = {
     sm: {
@@ -91,8 +93,9 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
     return (
       <Link
         to={to}
+        onClick={onClick}
         className="focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xl inline-flex max-w-full"
-        aria-label="URJA SAATHI Home"
+        aria-label="Go to URJA SAATHI home"
       >
         {content}
       </Link>

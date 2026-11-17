@@ -9,14 +9,18 @@ export const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Brand Info */}
           <div className="md:col-span-2 space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-xs">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-lg group"
+              aria-label="Go to URJA SAATHI home"
+            >
+              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-xs group-hover:bg-emerald-700 transition-colors">
                 <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
               </div>
-              <span className="font-extrabold text-forest-900 tracking-tight text-lg">
+              <span className="font-extrabold text-forest-900 tracking-tight text-lg group-hover:text-emerald-700 transition-colors">
                 URJA SAATHI
               </span>
-            </div>
+            </Link>
             <p className="text-sm text-slate-500 max-w-sm">
               Offline-first, voice-assisted community energy savings platform. Built to make solar adoption and electricity savings accessible to every household in India.
             </p>

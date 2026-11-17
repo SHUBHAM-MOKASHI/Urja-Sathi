@@ -80,7 +80,12 @@ export const MobileDrawer: React.FC = () => {
       <div className="fixed inset-y-0 left-0 w-[280px] bg-white shadow-2xl flex flex-col z-50 transform transition-transform duration-200 ease-out">
         {/* Drawer Header */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-slate-100">
-          <BrandLogo to="/dashboard" size="md" showTagline={true} />
+          <BrandLogo
+            to="/"
+            size="md"
+            showTagline={true}
+            onClick={() => setIsMobileDrawerOpen(false)}
+          />
           <button
             onClick={() => setIsMobileDrawerOpen(false)}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"

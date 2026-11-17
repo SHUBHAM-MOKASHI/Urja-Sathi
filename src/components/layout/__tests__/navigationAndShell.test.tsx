@@ -7,6 +7,7 @@ import { NotificationProvider } from '../../../context/NotificationContext';
 import { Sidebar } from '../Sidebar';
 import { TopUtilityBar } from '../TopUtilityBar';
 import { MobileDrawer } from '../MobileDrawer';
+import { Footer } from '../Footer';
 import { BrandLogo } from '../../common/BrandLogo';
 import { Button } from '../../common/Button';
 import { Badge } from '../../common/Badge';
@@ -186,6 +187,38 @@ describe('URJA SAATHI — BATCH 7A: Global UI/UX Foundation & Design System', ()
       expect(html).toContain('aria-selected="true"');
       expect(html).toContain('Tariff Breakdown');
       expect(html).toContain('3');
+    });
+  });
+
+  describe('6. Logo Click Navigation to Landing Page', () => {
+    it('renders BrandLogo with a clickable link pointing to root landing page "/"', () => {
+      const html = renderComponentToString(<BrandLogo />);
+      expect(html).toContain('href="/"');
+      expect(html).toContain('aria-label="Go to URJA SAATHI home"');
+    });
+
+    it('renders BrandLogo in Sidebar pointing directly to "/" from any route', () => {
+      const htmlWorkforce = renderComponentToString(<Sidebar />, { initialEntries: ['/workforce'] });
+      expect(htmlWorkforce).toContain('href="/"');
+      expect(htmlWorkforce).toContain('aria-label="Go to URJA SAATHI home"');
+
+      const htmlSolar = renderComponentToString(<Sidebar />, { initialEntries: ['/solar-audit'] });
+      expect(htmlSolar).toContain('href="/"');
+
+      const htmlQuotations = renderComponentToString(<Sidebar />, { initialEntries: ['/quotations'] });
+      expect(htmlQuotations).toContain('href="/"');
+    });
+
+    it('renders BrandLogo in TopUtilityBar pointing to "/"', () => {
+      const html = renderComponentToString(<TopUtilityBar />, { initialEntries: ['/dashboard'] });
+      expect(html).toContain('href="/"');
+      expect(html).toContain('aria-label="Go to URJA SAATHI home"');
+    });
+
+    it('renders Brand in Footer pointing to "/"', () => {
+      const html = renderComponentToString(<Footer />);
+      expect(html).toContain('href="/"');
+      expect(html).toContain('aria-label="Go to URJA SAATHI home"');
     });
   });
 });

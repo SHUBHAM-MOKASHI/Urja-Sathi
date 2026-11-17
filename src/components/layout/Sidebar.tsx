@@ -62,7 +62,7 @@ export const Sidebar: React.FC = () => {
       >
         <BrandLogo
           collapsed={isSidebarCollapsed}
-          to="/dashboard"
+          to="/"
           size={isSidebarCollapsed ? 'sm' : 'md'}
           showTagline={!isSidebarCollapsed}
         />

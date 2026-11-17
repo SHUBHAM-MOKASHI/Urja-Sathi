@@ -85,7 +85,7 @@ export const TopUtilityBar: React.FC = () => {
 
           {/* Mobile Brand Logo Mark (< 1024px) */}
           <div className="lg:hidden shrink-0">
-            <BrandLogo to="/dashboard" size="sm" showTagline={false} />
+            <BrandLogo to="/" size="sm" showTagline={false} />
           </div>
 
           {/* Desktop Sidebar Toggle Button */}
